@@ -1,0 +1,18 @@
+# cache
+*.pyc
+*.pyd
+./__pycache__/
+
+# distribution / packaging
+.Python
+./.venv/
+
+#eggs
+*.egg
+*.egg-info/
+
+# instruccions
+.github
+
+#logs
+*.log
