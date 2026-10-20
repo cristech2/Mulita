@@ -2,8 +2,11 @@
 
 ### Feat
 
+- **planner**: implementar generación de plan de organización determinista, resolución de colisiones y validación de rutas
+- **cli**: conectar comando `plan` con resumen visual de operaciones y exportación a JSON (`--salida`)
+- **models**: agregar modelos `PlanOrganizacion`, `OperacionPlan` y enum `AccionPlan`
+- **reporting**: agregar `exportar_plan_json` con serialización de tipos nativos, Dataclasses, Enums y Path
 - **associations**: implementar asociacion de sidecars (.xmp, .rrdata, .rrexif), deteccion de huerfanos y ambiguos
-- **models**: centralizar modelos de datos y enumeraciones del dominio
 - **cli**: integrar desglose de sidecars asociados, huérfanos y ambiguos en la salida de `scan`
 - **metadata**: integrar extraccion de metadatos EXIF con ExifTool y resolucion de fechas
 
