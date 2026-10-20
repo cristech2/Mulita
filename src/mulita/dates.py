@@ -2,27 +2,16 @@
 Módulo para la resolución y priorización de fechas de archivos.
 """
 
-from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+
+from mulita.models import FechaResultado, TipoArchivo
 
 FORMATOS_EXIF: list[str] = [
     "%Y:%m:%d %H:%M:%S",
     "%Y:%m:%d %H:%M:%S%z",
     "%Y-%m-%d %H:%M:%S",
 ]
-
-
-@dataclass
-class FechaResultado:
-    """
-    Representa el resultado final del análisis de fecha de un archivo.
-    """
-
-    fecha: datetime
-    fuente: str
-    es_respaldo: bool
 
 
 def _parsear_fecha_exif(cadena_fecha: str | None) -> datetime | None:
@@ -46,15 +35,12 @@ def _obtener_fecha_modificacion(ruta: Path) -> datetime:
 
 
 def resolver_fecha_archivo(
-    ruta: Path, tipo: Any, metadatos: dict[str, str]
+    ruta: Path, tipo: TipoArchivo, metadatos: dict[str, str]
 ) -> FechaResultado:
     """
     Determina la fecha organizativa según las reglas de prioridad del TipoArchivo.
     """
-    # Importación diferida o evaluación por atributo para evitar importación circular
-    es_video = getattr(tipo, "name", "") == "VIDEO"
-
-    if es_video:
+    if tipo == TipoArchivo.VIDEO:
         prioridades = ["MediaCreateDate", "CreateDate", "DateTimeOriginal"]
     else:
         prioridades = ["DateTimeOriginal", "CreateDate"]

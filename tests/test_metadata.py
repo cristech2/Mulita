@@ -1,30 +1,78 @@
 """
-Pruebas unitarias para el módulo de extracción de metadatos.
+Pruebas unitarias para el módulo de extracción de metadatos (metadata.py).
 """
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from mulita.metadata import extraer_metadatos, verificar_exiftool
 
 
 def test_verificar_exiftool_presente() -> None:
-    """Verifica la respuesta cuando ExifTool está en el PATH."""
+    """Verifica la respuesta cuando ExifTool está presente en el PATH."""
+    # Arrange & Act
     with patch("shutil.which", return_value="/usr/bin/exiftool"):
-        assert verificar_exiftool() is True
+        resultado = verificar_exiftool()
+
+    # Assert
+    assert resultado is True
 
 
 def test_verificar_exiftool_ausente() -> None:
-    """Verifica la respuesta cuando ExifTool no está en el PATH."""
+    """Verifica la respuesta cuando ExifTool no está disponible en el PATH."""
+    # Arrange & Act
     with patch("shutil.which", return_value=None):
-        assert verificar_exiftool() is False
+        resultado = verificar_exiftool()
+
+    # Assert
+    assert resultado is False
 
 
 def test_extraer_metadatos_sin_exiftool(tmp_path: Path) -> None:
     """Comprueba que retorne diccionarios vacíos si ExifTool no está disponible."""
+    # Arrange
     archivo = tmp_path / "prueba.jpg"
     archivo.write_text("dummy")
 
+    # Act
     with patch("mulita.metadata.verificar_exiftool", return_value=False):
         resultado = extraer_metadatos([archivo])
-        assert resultado == {archivo: {}}
+
+    # Assert
+    assert resultado == {archivo: {}}
+
+
+def test_extraer_metadatos_exito_mock_subprocess(tmp_path: Path) -> None:
+    """
+    Verifica que la salida JSON de ExifTool sea parseada y asignada
+    correctamente a cada ruta dada.
+    """
+    # Arrange
+    foto = tmp_path / "foto.jpg"
+    foto.touch()
+
+    # Convertir la ruta con barras inclinadas '/' para evitar 'invalid escape' en JSON en Windows
+    ruta_posix = foto.resolve().as_posix()
+
+    json_salida = f"""[
+      {{
+        "SourceFile": "{ruta_posix}",
+        "DateTimeOriginal": "2023:10:20 12:00:00",
+        "CreateDate": "2023:10:20 12:00:00"
+      }}
+    ]"""
+
+    mock_process = MagicMock()
+    mock_process.stdout = json_salida
+
+    # Act
+    with (
+        patch("mulita.metadata.verificar_exiftool", return_value=True),
+        patch("subprocess.run", return_value=mock_process),
+    ):
+        resultado = extraer_metadatos([foto])
+
+    # Assert
+    assert foto in resultado
+    assert resultado[foto]["DateTimeOriginal"] == "2023:10:20 12:00:00"
+    assert "SourceFile" not in resultado[foto]

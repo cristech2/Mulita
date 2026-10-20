@@ -9,9 +9,9 @@ from pathlib import Path
 
 import typer
 
-from mulita.metadata import verificar_exiftool
+from mulita.models import TipoArchivo
 from mulita.reporting import configurar_logging, obtener_logger
-from mulita.scanner import TipoArchivo, analizar_directorio
+from mulita.scanner import analizar_directorio
 
 app = typer.Typer(
     help="Mulita: Organizador seguro e inspeccionable de fotos y videos.",
@@ -66,36 +66,43 @@ def scan(
     logger.info(f"Iniciando escaneo en: {origen}")
     typer.echo(f"🔍 Iniciando escaneo en: {origen}\n")
 
-    if not verificar_exiftool():
-        logger.warning(
-            "ExifTool no está disponible. Las fechas dependerán de la modificación del sistema."
-        )
-        typer.secho(
-            "⚠️ Advertencia: ExifTool no está instalado. "
-            "Las fechas dependerán de la fecha de modificación del archivo.",
-            fg=typer.colors.YELLOW,
-        )
-
-    analizados = analizar_directorio(origen)
-
-    conteo: dict[TipoArchivo, int] = {tipo: 0 for tipo in TipoArchivo}
-    for item in analizados:
-        conteo[item.archivo.tipo] += 1
+    resultado = analizar_directorio(origen)
+    resumen = resultado.obtener_resumen()
 
     typer.secho("📊 Resumen del escaneo:", bold=True)
-    typer.echo(f"  🖼️  Imágenes: {conteo[TipoArchivo.IMAGEN]}")
-    typer.echo(f"  📸 RAWs:     {conteo[TipoArchivo.RAW]}")
-    typer.echo(f"  🎥 Videos:   {conteo[TipoArchivo.VIDEO]}")
-    typer.echo(f"  📄 Auxiliares (XMP): {conteo[TipoArchivo.AUXILIAR]}")
+    typer.echo(f"  🖼️  Imágenes:         {resumen.conteo_por_tipo[TipoArchivo.IMAGEN]}")
+    typer.echo(f"  📸 RAWs:             {resumen.conteo_por_tipo[TipoArchivo.RAW]}")
+    typer.echo(f"  🎥 Videos:           {resumen.conteo_por_tipo[TipoArchivo.VIDEO]}")
+    typer.echo(
+        f"  📄 Auxiliares (XMP): {resumen.conteo_por_tipo[TipoArchivo.AUXILIAR]}"
+    )
 
-    if conteo[TipoArchivo.DESCONOCIDO] > 0:
+    if resumen.total_desconocidos > 0:
         typer.secho(
-            f"  ❓ Desconocidos/Ignorados: {conteo[TipoArchivo.DESCONOCIDO]}",
+            f"  ❓ Desconocidos:     {resumen.total_desconocidos}",
             fg=typer.colors.YELLOW,
         )
 
-    typer.echo(f"\nTotal de archivos analizados: {len(analizados)}")
-    logger.info(f"Escaneo completado. Total encontrados: {len(analizados)}")
+    typer.echo(f"\n📦 Grupos de medios principales: {resumen.total_grupos}")
+    typer.echo(f"🔗 Sidecars asociados:            {resumen.sidecars_asociados}")
+
+    if resumen.sidecars_huerfanos > 0:
+        typer.secho(
+            f"⚠️  Sidecars huérfanos:          {resumen.sidecars_huerfanos}",
+            fg=typer.colors.YELLOW,
+        )
+
+    if resumen.sidecars_ambiguos > 0:
+        typer.secho(
+            f"⚠️  Sidecars ambiguos:           {resumen.sidecars_ambiguos}",
+            fg=typer.colors.YELLOW,
+        )
+
+    typer.echo(f"\nTotal de archivos analizados: {resumen.total_archivos}")
+    logger.info(
+        f"Escaneo completado. Total procesados: {resumen.total_archivos} "
+        f"({resumen.total_grupos} grupos de medios)"
+    )
 
 
 @app.command()

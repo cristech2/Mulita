@@ -1,25 +1,20 @@
 """
-Módulo para el recorrido recursivo, clasificación y análisis inicial de archivos.
+Módulo para el recorrido recursivo, clasificación y análisis inicial de
+archivos en la fase de escaneo.
 """
 
-from dataclasses import dataclass
-from enum import Enum, auto
 from pathlib import Path
 
-from mulita.dates import FechaResultado, resolver_fecha_archivo
+from mulita.associations import asociar_sidecars
+from mulita.dates import resolver_fecha_archivo
 from mulita.metadata import extraer_metadatos
+from mulita.models import (
+    ArchivoAnalizado,
+    ArchivoEscaneado,
+    ResultadoEscaneo,
+    TipoArchivo,
+)
 from mulita.reporting import obtener_logger
-
-
-class TipoArchivo(Enum):
-    """Enumeración de los tipos de archivos soportados."""
-
-    IMAGEN = auto()
-    RAW = auto()
-    VIDEO = auto()
-    AUXILIAR = auto()
-    DESCONOCIDO = auto()
-
 
 EXTENSIONES_IMAGEN: set[str] = {".jpg", ".jpeg", ".png", ".tiff", ".tif", ".af"}
 EXTENSIONES_RAW: set[str] = {
@@ -34,27 +29,6 @@ EXTENSIONES_RAW: set[str] = {
 }
 EXTENSIONES_VIDEO: set[str] = {".mp4", ".mov", ".m4v", ".avi", ".mkv", ".3gp"}
 EXTENSIONES_AUX: set[str] = {".xmp", ".rrdata", ".rrexif"}
-
-
-@dataclass
-class ArchivoEscaneado:
-    """
-    Representa un archivo encontrado durante el escaneo con su tipo clasificado.
-    """
-
-    ruta: Path
-    tipo: TipoArchivo
-
-
-@dataclass
-class ArchivoAnalizado:
-    """
-    Representa un archivo escaneado con su resolución de fecha y metadatos.
-    """
-
-    archivo: ArchivoEscaneado
-    fecha_resultado: FechaResultado
-    metadatos: dict[str, str]
 
 
 def clasificar_extension(extension: str) -> TipoArchivo:
@@ -105,15 +79,15 @@ def escanear_directorio(
 
 def analizar_directorio(
     origen: Path, destino_ignorar: Path | None = None
-) -> list[ArchivoAnalizado]:
+) -> ResultadoEscaneo:
     """
-    Orquesta el escaneo, la consulta de metadatos
-    y la resolución explícita de fechas.
+    Orquesta la Fase 1 completa: escaneo, consulta de metadatos,
+    resolución de fechas y asociación de sidecars.
     """
     logger = obtener_logger()
     archivos = escanear_directorio(origen, destino_ignorar)
 
-    # Filtrar únicamente los archivos compatibles para la extracción de metadatos
+    # Filtrar únicamente los archivos compatibles para extracción de metadatos
     multimedia_rutas = [
         a.ruta
         for a in archivos
@@ -124,12 +98,18 @@ def analizar_directorio(
     metadatos_map = extraer_metadatos(multimedia_rutas)
 
     resultados: list[ArchivoAnalizado] = []
+    desconocidos: list[ArchivoAnalizado] = []
+
     for item in archivos:
         meta = metadatos_map.get(item.ruta, {})
         res_fecha = resolver_fecha_archivo(item.ruta, item.tipo, meta)
+        analizado = ArchivoAnalizado(
+            archivo=item, fecha_resultado=res_fecha, metadatos=meta
+        )
 
         if item.tipo == TipoArchivo.DESCONOCIDO:
             logger.warning(f"Archivo desconocido/no reconocido: {item.ruta}")
+            desconocidos.append(analizado)
         else:
             logger.debug(
                 f"Encontrado: {item.ruta} [{item.tipo.name}] -> "
@@ -137,8 +117,13 @@ def analizar_directorio(
                 f"({res_fecha.fuente})"
             )
 
-        resultados.append(
-            ArchivoAnalizado(archivo=item, fecha_resultado=res_fecha, metadatos=meta)
-        )
+        resultados.append(analizado)
 
-    return resultados
+    # Asociar sidecars a sus archivos principales
+    grupos, sidecars_no_asociados = asociar_sidecars(resultados)
+
+    return ResultadoEscaneo(
+        grupos=grupos,
+        sidecars_no_asociados=sidecars_no_asociados,
+        desconocidos=desconocidos,
+    )

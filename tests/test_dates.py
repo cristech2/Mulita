@@ -1,50 +1,70 @@
 """
-Pruebas unitarias para el módulo de resolución de fechas.
+Pruebas unitarias para la resolución y priorización de fechas (dates.py).
 """
 
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 from mulita.dates import FechaResultado, resolver_fecha_archivo
-from mulita.scanner import TipoArchivo
+from mulita.models import TipoArchivo
 
 
-def test_resolver_fecha_imagen_exif(tmp_path: Path) -> None:
-    """Comprueba la selección de DateTimeOriginal para imágenes."""
-    archivo = tmp_path / "foto.jpg"
-    archivo.touch()
+def test_resolver_fecha_imagen_con_datetime_original() -> None:
+    """
+    Verifica que se priorice DateTimeOriginal sobre otras fuentes en imágenes.
+    """
+    # Arrange
+    ruta = Path("/fotos/foto.jpg")
+    metadatos = {"DateTimeOriginal": "2023:05:15 14:30:00"}
 
-    metadatos = {"DateTimeOriginal": "2024:05:15 10:30:00"}
-    res: FechaResultado = resolver_fecha_archivo(archivo, TipoArchivo.IMAGEN, metadatos)
+    # Act
+    res = resolver_fecha_archivo(ruta, TipoArchivo.IMAGEN, metadatos)
 
-    assert res.fecha == datetime(2024, 5, 15, 10, 30, 0)
+    # Assert
+    assert isinstance(res, FechaResultado)
+    assert res.fecha == datetime(2023, 5, 15, 14, 30, 0)
     assert res.fuente == "DateTimeOriginal"
-    assert res.es_respaldo is False
+    assert not res.es_respaldo
 
 
-def test_resolver_fecha_video_prioridad(tmp_path: Path) -> None:
-    """Comprueba que MediaCreateDate tenga prioridad en videos."""
-    archivo = tmp_path / "video.mp4"
-    archivo.touch()
-
+def test_resolver_fecha_video_prioriza_mediacreatedate() -> None:
+    """
+    Verifica que en videos se priorice MediaCreateDate frente a CreateDate.
+    """
+    # Arrange
+    ruta = Path("/videos/clip.mp4")
     metadatos = {
-        "CreateDate": "2023:01:01 12:00:00",
-        "MediaCreateDate": "2024:08:20 18:45:10",
+        "MediaCreateDate": "2022:01:01 10:00:00",
+        "CreateDate": "2022:01:02 10:00:00",
     }
-    res: FechaResultado = resolver_fecha_archivo(archivo, TipoArchivo.VIDEO, metadatos)
 
-    assert res.fecha == datetime(2024, 8, 20, 18, 45, 10)
+    # Act
+    res = resolver_fecha_archivo(ruta, TipoArchivo.VIDEO, metadatos)
+
+    # Assert
+    assert res.fecha == datetime(2022, 1, 1, 10, 0, 0)
     assert res.fuente == "MediaCreateDate"
-    assert res.es_respaldo is False
+    assert not res.es_respaldo
 
 
-def test_resolver_fecha_fallback(tmp_path: Path) -> None:
-    """Comprueba el respaldo a la fecha de modificación del sistema."""
-    archivo = tmp_path / "sin_exif.jpg"
-    archivo.touch()
+def test_resolver_fecha_respaldo_filemodifydate(tmp_path: Path) -> None:
+    """
+    Verifica que ante la ausencia de metadatos EXIF se utilice
+    la fecha de modificación del archivo (FileModifyDate) como respaldo.
+    """
+    # Arrange
+    archivo_tmp = tmp_path / "imagen_sin_exif.jpg"
+    archivo_tmp.touch()
+    metadatos: dict[str, str] = {}
 
-    res: FechaResultado = resolver_fecha_archivo(archivo, TipoArchivo.IMAGEN, {})
+    fecha_ficticia = datetime(2025, 11, 7, 8, 30, 0)
 
-    assert isinstance(res.fecha, datetime)
+    # Act
+    with patch("mulita.dates._obtener_fecha_modificacion", return_value=fecha_ficticia):
+        res = resolver_fecha_archivo(archivo_tmp, TipoArchivo.IMAGEN, metadatos)
+
+    # Assert
+    assert res.fecha == fecha_ficticia
     assert res.fuente == "FileModifyDate"
-    assert res.es_respaldo is True
+    assert res.es_respaldo
