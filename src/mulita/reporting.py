@@ -2,9 +2,13 @@
 
 import json
 import logging
+from dataclasses import is_dataclass
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any
+
+from mulita.models import PlanOrganizacion
 
 LOGGER_NAME = "mulita"
 DIRECTORIO_REPORTES_DEFAULT = Path("reportes")
@@ -123,3 +127,42 @@ def exportar_json(datos: dict[str, Any], ruta_salida: Path) -> None:
     ruta_salida.parent.mkdir(parents=True, exist_ok=True)
     with ruta_salida.open("w", encoding="utf-8") as f:
         json.dump(datos, f, indent=4, ensure_ascii=False)
+
+
+def _convertir_a_json_compatible(obj: Any) -> Any:
+    """Convierte objetos del dominio en tipos nativos serializables a JSON.
+
+    Args:
+        obj (Any): Objeto a convertir.
+
+    Returns:
+        Any: Estructura de datos nativa serializable.
+    """
+    if isinstance(obj, Path):
+        return obj.as_posix()
+    if isinstance(obj, datetime):
+        return obj.isoformat()
+    if isinstance(obj, Enum):
+        return obj.name
+    if is_dataclass(obj) and not isinstance(obj, type):
+        return {
+            k: _convertir_a_json_compatible(v) for k, v in obj.__dict__.items()
+        }
+    if isinstance(obj, dict):
+        return {
+            str(k): _convertir_a_json_compatible(v) for k, v in obj.items()
+        }
+    if isinstance(obj, (list, tuple, set)):
+        return [_convertir_a_json_compatible(i) for i in obj]
+    return obj
+
+
+def exportar_plan_json(plan: PlanOrganizacion, ruta_salida: Path) -> None:
+    """Exporta una instancia de PlanOrganizacion a un archivo JSON.
+
+    Args:
+        plan (PlanOrganizacion): Plan de organización a exportar.
+        ruta_salida (Path): Ruta donde se guardará el archivo JSON.
+    """
+    datos = _convertir_a_json_compatible(plan)
+    exportar_json(datos, ruta_salida)

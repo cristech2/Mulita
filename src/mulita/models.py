@@ -197,3 +197,70 @@ class ResultadoEscaneo:
             total_desconocidos=len(self.desconocidos),
             total_archivos=total,
         )
+
+
+def _lista_advertencias_vacia() -> list[str]:
+    """Crea una lista vacía tipada para advertencias.
+
+    Returns:
+        list[str]: Lista vacía inicializada.
+    """
+    return []
+
+
+class AccionPlan(Enum):
+    """Acción prevista a realizar sobre un archivo en el plan de organización.
+
+    Attributes:
+        MOVER: Operación de traslado del archivo a su nueva ubicación.
+        OMITIR: El archivo no será procesado ni trasladado.
+    """
+
+    MOVER = auto()
+    OMITIR = auto()
+
+
+@dataclass
+class OperacionPlan:
+    """Representa la operación para un archivo principal y sus sidecars.
+
+    Attributes:
+        origen (Path): Ruta de origen del archivo principal.
+        destino (Path): Ruta de destino propuesta para el archivo principal.
+        categoria (TipoArchivo): Categoría del archivo.
+        fecha_resultado (FechaResultado): Resultado del análisis de fecha.
+        sidecars_asociados (list[tuple[Path, Path]]): Tuplas (origen, destino)
+            de sidecars vinculados.
+        accion (AccionPlan): Acción a ejecutar.
+        advertencias (list[str]): Advertencias u observaciones acumuladas.
+    """
+
+    origen: Path
+    destino: Path
+    categoria: TipoArchivo
+    fecha_resultado: FechaResultado
+    sidecars_asociados: list[tuple[Path, Path]]
+    accion: AccionPlan
+    advertencias: list[str] = field(default_factory=_lista_advertencias_vacia)
+
+
+@dataclass
+class PlanOrganizacion:
+    """Plan de organización completo generado para el lote de archivos.
+
+    Attributes:
+        directorio_origen (Path): Directorio de origen analizado.
+        directorio_destino (Path): Directorio base de destino.
+        operaciones (list[OperacionPlan]): Operaciones para los grupos
+            principales.
+        sidecars_omitidos (list[SidecarAsociado]): Sidecars huérfanos o
+            ambiguos.
+        desconocidos (list[ArchivoAnalizado]): Archivos no reconocidos
+            omitidos.
+    """
+
+    directorio_origen: Path
+    directorio_destino: Path
+    operaciones: list[OperacionPlan]
+    sidecars_omitidos: list[SidecarAsociado]
+    desconocidos: list[ArchivoAnalizado]

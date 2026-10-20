@@ -8,8 +8,13 @@ from pathlib import Path
 
 import typer
 
-from mulita.models import TipoArchivo
-from mulita.reporting import configurar_logging, obtener_logger
+from mulita.models import AccionPlan, TipoArchivo
+from mulita.planner import generar_plan
+from mulita.reporting import (
+    configurar_logging,
+    exportar_plan_json,
+    obtener_logger,
+)
 from mulita.scanner import analizar_directorio
 
 app = typer.Typer(
@@ -164,11 +169,62 @@ def plan(
         destino (Path): Directorio objetivo final.
         salida (Path | None): Ruta opcional para exportar el plan.
     """
+    logger = obtener_logger()
+    logger.info(f"Generando plan desde {origen} hacia {destino}")
     typer.echo(
-        f"📋 Generando plan para organizar desde {origen} hacia {destino}"
+        f"📋 Generando plan para organizar desde {origen} hacia {destino}\n"
     )
+
+    try:
+        resultado = analizar_directorio(origen)
+        plan_org = generar_plan(resultado, origen, destino)
+    except ValueError as e:
+        logger.error(f"Error al generar el plan: {e}")
+        typer.secho(f"❌ Error: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from e
+
+    total_mover = sum(
+        1 for op in plan_org.operaciones if op.accion == AccionPlan.MOVER
+    )
+    total_sidecars = sum(
+        len(op.sidecars_asociados) for op in plan_org.operaciones
+    )
+    total_advertencias = sum(
+        len(op.advertencias) for op in plan_org.operaciones
+    )
+
+    typer.secho("📊 Resumen del plan de organización:", bold=True)
+    typer.echo(f"  📦 Archivos a mover:         {total_mover}")
+    typer.echo(f"  🔗 Sidecars acompañantes:    {total_sidecars}")
+
+    if len(plan_org.sidecars_omitidos) > 0:
+        typer.secho(
+            "  ⚠️  Sidecars omitidos:        "
+            f"{len(plan_org.sidecars_omitidos)}",
+            fg=typer.colors.YELLOW,
+        )
+
+    if len(plan_org.desconocidos) > 0:
+        typer.secho(
+            f"  ❓ Desconocidos omitidos:     {len(plan_org.desconocidos)}",
+            fg=typer.colors.YELLOW,
+        )
+
+    if total_advertencias > 0:
+        typer.secho(
+            f"  ⚠️  Advertencias registradas:  {total_advertencias}",
+            fg=typer.colors.YELLOW,
+        )
+
+    logger.info(
+        f"Plan generado exitosamente. Mover: {total_mover}, "
+        f"Sidecars: {total_sidecars}, Advertencias: {total_advertencias}"
+    )
+
     if salida:
-        typer.echo(f"El plan se guardará en: {salida}")
+        exportar_plan_json(plan_org, salida)
+        typer.echo(f"\n💾 Plan exportado exitosamente en: {salida}")
+        logger.info(f"Plan exportado a JSON en: {salida}")
 
 
 @app.command()
