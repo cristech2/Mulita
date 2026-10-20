@@ -1,8 +1,4 @@
-"""
-Módulo para el registro de operaciones, errores y exportación de resúmenes.
-
-Implementa los requisitos RF-10 (Registros y resumen) y RNF-07 (Observabilidad).
-"""
+"""Registro, observabilidad y exportación de resúmenes para Mulita."""
 
 import json
 import logging
@@ -15,7 +11,12 @@ DIRECTORIO_REPORTES_DEFAULT = Path("reportes")
 
 
 def rotar_logs_antiguos(directorio: Path, max_archivos: int = 5) -> None:
-    """Conserva únicamente los 'max_archivos' más recientes en el directorio."""
+    """Mantiene solo los archivos de log más recientes.
+
+    Args:
+        directorio (Path): Directorio donde se almacenan los logs.
+        max_archivos (int): Cantidad máxima de archivos a conservar.
+    """
     if not directorio.exists():
         return
 
@@ -33,10 +34,16 @@ def rotar_logs_antiguos(directorio: Path, max_archivos: int = 5) -> None:
 
 
 def generar_ruta_log(ruta_base: Path) -> Path:
-    """Genera la ruta del archivo de log incluyendo fecha y hora (timestamp)."""
+    """Genera la ruta del archivo de log con marca temporal.
+
+    Args:
+        ruta_base (Path): Ruta base del log o carpeta de destino.
+
+    Returns:
+        Path: Ruta completa del archivo a crear.
+    """
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
 
-    # Si se pasa '.' o un directorio, usamos ese directorio. Si pasa un nombre de archivo, tomamos su carpeta contenedora.
     if ruta_base.is_dir() or ruta_base.suffix == "":
         directorio = ruta_base
         nombre_archivo = f"mulita_{timestamp}.log"
@@ -54,24 +61,21 @@ def configurar_logging(
     debug: bool = False,
     log_file: Path | None = None,
 ) -> logging.Logger:
-    """
-    Configura el sistema de logging desacoplando la consola del archivo de log.
+    """Configura el sistema de logging para la aplicación.
 
-    Parameters:
-        dev (bool): Si es True, el log registra desde DEBUG, consola limpia.
-        debug (bool): Si es True, tanto log como consola registran desde DEBUG.
-        log_file (Path | None): Ruta o carpeta base para guardar el log. Si es None,
-                                se utiliza la carpeta 'reportes/' por defecto.
+    Args:
+        dev (bool): Activa detalles de log manteniendo la consola limpia.
+        debug (bool): Activa log detallado en consola y archivo.
+        log_file (Path | None): Ruta base del archivo o carpeta de log.
 
     Returns:
-        logging.Logger: Instancia del logger configurada.
+        logging.Logger: Logger global configurado.
     """
     logger = logging.getLogger(LOGGER_NAME)
 
     if logger.hasHandlers():
         logger.handlers.clear()
 
-    # El logger principal debe aceptar DEBUG si dev o debug están activos
     nivel_general = logging.DEBUG if (dev or debug) else logging.INFO
     logger.setLevel(nivel_general)
 
@@ -80,15 +84,15 @@ def configurar_logging(
         datefmt="%Y-%m-%d %H:%M:%S",
     )
 
-    # Handler de consola: en pantalla solo se muestra ERROR salvo en modo --debug
     consola_handler = logging.StreamHandler()
     nivel_consola = logging.DEBUG if debug else logging.ERROR
     consola_handler.setLevel(nivel_consola)
     consola_handler.setFormatter(formato)
     logger.addHandler(consola_handler)
 
-    # Si no se especifica --log-file, la carpeta por defecto siempre es 'reportes/'
-    destino_log = log_file if log_file is not None else DIRECTORIO_REPORTES_DEFAULT
+    destino_log = (
+        log_file if log_file is not None else DIRECTORIO_REPORTES_DEFAULT
+    )
 
     ruta_log_real = generar_ruta_log(destino_log)
     archivo_handler = logging.FileHandler(ruta_log_real, encoding="utf-8")
@@ -101,12 +105,21 @@ def configurar_logging(
 
 
 def obtener_logger() -> logging.Logger:
-    """Recupera el logger principal de Mulita."""
+    """Devuelve el logger principal de Mulita.
+
+    Returns:
+        logging.Logger: Logger global de la aplicación.
+    """
     return logging.getLogger(LOGGER_NAME)
 
 
 def exportar_json(datos: dict[str, Any], ruta_salida: Path) -> None:
-    """Guarda un diccionario como archivo JSON de forma legible."""
+    """Guarda un diccionario como JSON de salida.
+
+    Args:
+        datos (dict[str, Any]): Estructura a serializar.
+        ruta_salida (Path): Ruta del archivo JSON de destino.
+    """
     ruta_salida.parent.mkdir(parents=True, exist_ok=True)
     with ruta_salida.open("w", encoding="utf-8") as f:
         json.dump(datos, f, indent=4, ensure_ascii=False)

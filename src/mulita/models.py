@@ -1,6 +1,4 @@
-"""
-Módulo de modelos de datos y enumeraciones del dominio para Mulita.
-"""
+"""Módulo de modelos de datos y enumeraciones del dominio para Mulita."""
 
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -9,7 +7,15 @@ from pathlib import Path
 
 
 class TipoArchivo(Enum):
-    """Enumeración de los tipos de archivos soportados."""
+    """Tipos de archivos soportados por el sistema.
+
+    Attributes:
+        IMAGEN: Archivos de imagen estándar.
+        RAW: Archivos RAW de cámaras.
+        VIDEO: Archivos de video.
+        AUXILIAR: Sidecars o archivos auxiliares.
+        DESCONOCIDO: Archivos no reconocidos.
+    """
 
     IMAGEN = auto()
     RAW = auto()
@@ -19,7 +25,13 @@ class TipoArchivo(Enum):
 
 
 class EstadoAsociacion(Enum):
-    """Estado de vinculación de un archivo auxiliar o sidecar."""
+    """Estado de asociación de un archivo auxiliar o sidecar.
+
+    Attributes:
+        ASOCIADO: El sidecar fue relacionado con un principal.
+        HUERFANO: El sidecar no tiene principal asociado.
+        AMBIGUO: El sidecar puede corresponder a varios archivos.
+    """
 
     ASOCIADO = auto()
     HUERFANO = auto()
@@ -28,8 +40,12 @@ class EstadoAsociacion(Enum):
 
 @dataclass
 class FechaResultado:
-    """
-    Representa el resultado final del análisis de fecha de un archivo.
+    """Resultado final del análisis de fecha de un archivo.
+
+    Attributes:
+        fecha (datetime): Fecha calculada o inferida.
+        fuente (str): Origen de la fecha (EXIF, sistema, etc.).
+        es_respaldo (bool): Indica si la fecha es de respaldo.
     """
 
     fecha: datetime
@@ -39,9 +55,11 @@ class FechaResultado:
 
 @dataclass
 class ArchivoEscaneado:
-    """
-    Representa un archivo encontrado durante el escaneo con su tipo
-    clasificado.
+    """Archivo encontrado durante el escaneo.
+
+    Attributes:
+        ruta (Path): Ruta completa del archivo.
+        tipo (TipoArchivo): Tipo de archivo clasificado.
     """
 
     ruta: Path
@@ -50,8 +68,12 @@ class ArchivoEscaneado:
 
 @dataclass
 class ArchivoAnalizado:
-    """
-    Representa un archivo escaneado con su resolución de fecha y metadatos.
+    """Archivo ya analizado con metadatos y fecha resuelta.
+
+    Attributes:
+        archivo (ArchivoEscaneado): Archivo original escaneado.
+        fecha_resultado (FechaResultado): Fecha calculada.
+        metadatos (dict[str, str]): Metadatos extraídos del archivo.
     """
 
     archivo: ArchivoEscaneado
@@ -61,8 +83,12 @@ class ArchivoAnalizado:
 
 @dataclass
 class SidecarAsociado:
-    """
-    Representa un archivo auxiliar procesado y su estado de asociación.
+    """Resultado de asociación de un sidecar con un archivo principal.
+
+    Attributes:
+        archivo (ArchivoAnalizado): Sidecar analizado.
+        estado (EstadoAsociacion): Estado de asociación.
+        motivo (str): Motivo de la asociación o falta de ella.
     """
 
     archivo: ArchivoAnalizado
@@ -71,23 +97,42 @@ class SidecarAsociado:
 
 
 def _lista_sidecars_vacia() -> list[ArchivoAnalizado]:
-    """Fábrica para inicializar la lista de sidecars con tipado explícito."""
+    """Crea una lista vacía tipada para sidecars.
+
+    Returns:
+        list[ArchivoAnalizado]: Lista vacía inicializada.
+    """
     return []
 
 
 @dataclass
 class GrupoArchivo:
-    """
-    Representa un archivo principal junto con sus sidecars vinculados.
+    """Agrupa un archivo principal con sus sidecars asociados.
+
+    Attributes:
+        principal (ArchivoAnalizado): Archivo principal del grupo.
+        sidecars (list[ArchivoAnalizado]): Lista de sidecars vinculados.
     """
 
     principal: ArchivoAnalizado
-    sidecars: list[ArchivoAnalizado] = field(default_factory=_lista_sidecars_vacia)
+    sidecars: list[ArchivoAnalizado] = field(
+        default_factory=_lista_sidecars_vacia
+    )
 
 
 @dataclass
 class ResumenEscaneo:
-    """Consolidado de métricas calculado a partir de un ResultadoEscaneo."""
+    """Resumen consolidado de métricas del escaneo.
+
+    Attributes:
+        conteo_por_tipo (dict[TipoArchivo, int]): Conteo por tipo de archivo.
+        total_grupos (int): Cantidad total de grupos principales.
+        sidecars_asociados (int): Cantidad de sidecars asociados.
+        sidecars_huerfanos (int): Cantidad de sidecars huérfanos.
+        sidecars_ambiguos (int): Cantidad de sidecars ambiguos.
+        total_desconocidos (int): Cantidad de archivos desconocidos.
+        total_archivos (int): Total de archivos contabilizados.
+    """
 
     conteo_por_tipo: dict[TipoArchivo, int]
     total_grupos: int
@@ -100,9 +145,13 @@ class ResumenEscaneo:
 
 @dataclass
 class ResultadoEscaneo:
-    """
-    Resultado consolidado de la fase de escaneo, incluyendo grupos de medios,
-    sidecars no asociados y archivos desconocidos.
+    """Resultado final del escaneo del directorio.
+
+    Attributes:
+        grupos (list[GrupoArchivo]): Grupos principales con sidecars.
+        sidecars_no_asociados (list[SidecarAsociado]): Sidecars huérfanos o
+            ambiguos.
+        desconocidos (list[ArchivoAnalizado]): Archivos no reconocidos.
     """
 
     grupos: list[GrupoArchivo]
@@ -110,21 +159,23 @@ class ResultadoEscaneo:
     desconocidos: list[ArchivoAnalizado]
 
     def obtener_resumen(self) -> ResumenEscaneo:
-        """Calcula y devuelve las métricas consolidadas de la fase de escaneo."""
+        """Calcula y devuelve un resumen agregado del escaneo.
+
+        Returns:
+            ResumenEscaneo: Métricas consolidadas del resultado.
+        """
         conteo: dict[TipoArchivo, int] = {tipo: 0 for tipo in TipoArchivo}
 
         huerfanos = 0
         ambiguos = 0
         asociados = 0
 
-        # Contar archivos en grupos (principales y sidecars asociados)
         for grupo in self.grupos:
             conteo[grupo.principal.archivo.tipo] += 1
             for sidecar in grupo.sidecars:
                 conteo[sidecar.archivo.tipo] += 1
                 asociados += 1
 
-        # Contar sidecars no asociados (huérfanos y ambiguos)
         for sidecar_na in self.sidecars_no_asociados:
             conteo[sidecar_na.archivo.archivo.tipo] += 1
             if sidecar_na.estado == EstadoAsociacion.HUERFANO:
@@ -132,7 +183,6 @@ class ResultadoEscaneo:
             elif sidecar_na.estado == EstadoAsociacion.AMBIGUO:
                 ambiguos += 1
 
-        # Contar desconocidos
         for desc in self.desconocidos:
             conteo[desc.archivo.tipo] += 1
 

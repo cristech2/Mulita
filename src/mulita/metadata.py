@@ -1,6 +1,4 @@
-"""
-Módulo para la comprobación y extracción de metadatos mediante ExifTool.
-"""
+"""Extracción y validación de metadatos con ExifTool."""
 
 import json
 import shutil
@@ -12,13 +10,22 @@ from mulita.reporting import obtener_logger
 
 
 def verificar_exiftool() -> bool:
-    """Verifica si ExifTool está instalado y disponible en el PATH del sistema."""
+    """Comprueba si ExifTool está disponible en el PATH del sistema.
+
+    Returns:
+        bool: ``True`` si ExifTool está instalado y accesible.
+    """
     return shutil.which("exiftool") is not None
 
 
 def extraer_metadatos(rutas: list[Path]) -> dict[Path, dict[str, str]]:
-    """
-    Extrae metadatos de fecha utilizando ExifTool con archivo temporal (-@ argfile).
+    """Extrae metadatos de fecha para las rutas indicadas usando ExifTool.
+
+    Args:
+        rutas (list[Path]): Lista de rutas a consultar.
+
+    Returns:
+        dict[Path, dict[str, str]]: Mapa de ruta a metadatos encontrados.
     """
     logger = obtener_logger()
 
@@ -36,7 +43,10 @@ def extraer_metadatos(rutas: list[Path]) -> dict[Path, dict[str, str]]:
 
     try:
         with tempfile.NamedTemporaryFile(
-            mode="w", encoding="utf-8", delete=False, suffix=".txt"
+            mode="w",
+            encoding="utf-8",
+            delete=False,
+            suffix=".txt",
         ) as tmp_file:
             for r in rutas:
                 tmp_file.write(f"{r.resolve()}\n")
@@ -53,7 +63,6 @@ def extraer_metadatos(rutas: list[Path]) -> dict[Path, dict[str, str]]:
             str(tmp_path),
         ]
 
-        # Se omite check=True para procesar la salida JSON incluso si ExifTool retorna estado != 0
         resultado = subprocess.run(
             comando,
             check=False,
@@ -85,7 +94,9 @@ def extraer_metadatos(rutas: list[Path]) -> dict[Path, dict[str, str]]:
     for ruta in rutas:
         ruta_resuelta = ruta.resolve()
         info = datos_por_fuente.get(ruta_resuelta, {})
-        info_filtrada = {k: str(v) for k, v in info.items() if k != "SourceFile"}
+        info_filtrada = {
+            k: str(v) for k, v in info.items() if k != "SourceFile"
+        }
         metadatos_mapeados[ruta] = info_filtrada
 
     return metadatos_mapeados

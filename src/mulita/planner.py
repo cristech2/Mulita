@@ -1,1 +1,1 @@
-"""Placeholder para la generación del plan y la resolución de colisiones."""
+"""Generación del plan de organización y resolución de colisiones."""

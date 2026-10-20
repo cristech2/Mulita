@@ -1,6 +1,4 @@
-"""
-Pruebas de integración para la interfaz de línea de comandos (CLI).
-"""
+"""Pruebas para la interfaz de línea de comandos."""
 
 from pathlib import Path
 
@@ -12,10 +10,7 @@ runner = CliRunner()
 
 
 def test_cli_ayuda_base() -> None:
-    """
-    Verifica que la ayuda principal de la CLI muestre los tres subcomandos
-    del alcance del MVP: scan, plan y run.
-    """
+    """Verifica que la ayuda principal muestre los comandos del MVP."""
     result = runner.invoke(app, ["--help"], env={"COLUMNS": "120"})
 
     assert result.exit_code == 0
@@ -26,9 +21,10 @@ def test_cli_ayuda_base() -> None:
 
 
 def test_cli_scan_ejecucion_exitosa(tmp_path: Path) -> None:
-    """
-    Verifica que el comando `scan` procese un directorio existente y
-    reporte métricas en la consola.
+    """Verifica que ``scan`` analice un directorio y muestre métricas.
+
+    Args:
+        tmp_path (Path): Directorio temporal de la prueba.
     """
     # Arrange
     origen = tmp_path / "origen"
@@ -46,12 +42,12 @@ def test_cli_scan_ejecucion_exitosa(tmp_path: Path) -> None:
 
 
 def test_cli_scan_directorio_inexistente() -> None:
-    """
-    Verifica que Typer valide la existencia de la carpeta de origen.
-    """
+    """Verifica que Typer rechace una carpeta de origen inexistente."""
     # Act
     result = runner.invoke(app, ["scan", "/ruta/inexistente/xyz"])
 
     # Assert
     assert result.exit_code != 0
-    assert "does not exist" in result.output or "Invalid value" in result.output
+    assert (
+        "does not exist" in result.output or "Invalid value" in result.output
+    )

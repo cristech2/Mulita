@@ -1,1 +1,1 @@
-"""Placeholder para la ejecución controlada del plan."""
+"""Control de ejecución del plan de organización."""

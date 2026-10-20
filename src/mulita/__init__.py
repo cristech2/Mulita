@@ -1,8 +1,7 @@
-"""
-Mulita: Organizador multiplataforma de fotos y videos.
+"""Paquete principal de Mulita.
 
-Este paquete provee las herramientas para analizar, planificar y organizar
-archivos multimedia basándose en sus metadatos y reglas seguras por defecto.
+Este paquete proporciona herramientas para analizar, planificar y organizar
+archivos multimedia a partir de sus metadatos y reglas seguras por defecto.
 """
 
 __version__ = "0.1.0"

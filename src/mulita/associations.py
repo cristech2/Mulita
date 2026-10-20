@@ -1,7 +1,4 @@
-"""
-Módulo para la asociación de archivos auxiliares (sidecars)
-con sus correspondientes archivos principales de medios.
-"""
+"""Asociación de sidecars con sus archivos principales."""
 
 from pathlib import Path
 
@@ -19,16 +16,14 @@ def _buscar_candidatos_principales(
     sidecar: ArchivoAnalizado,
     principales: list[ArchivoAnalizado],
 ) -> list[ArchivoAnalizado]:
-    """
-    Encuentra archivos principales en la misma carpeta que coinciden
-    con el nombre base o nombre completo del sidecar.
+    """Busca candidatos principales para un sidecar en la misma carpeta.
 
-    Parameters:
-    sidecar (ArchivoAnalizado): El archivo auxiliar a vincular.
-    principales (list[ArchivoAnalizado]): Candidatos principales.
+    Args:
+        sidecar (ArchivoAnalizado): Archivo auxiliar a asociar.
+        principales (list[ArchivoAnalizado]): Archivos principales disponibles.
 
     Returns:
-    list[ArchivoAnalizado]: Lista de archivos principales coincidentes.
+        list[ArchivoAnalizado]: Lista de candidatos válidos.
     """
     candidatos: list[ArchivoAnalizado] = []
     stem_sidecar = sidecar.archivo.ruta.stem.lower()
@@ -37,8 +32,6 @@ def _buscar_candidatos_principales(
         nombre_principal = principal.archivo.ruta.name.lower()
         stem_principal = principal.archivo.ruta.stem.lower()
 
-        # Coincidencia directa por stem (ej: foto1.xmp <-> foto1.jpg)
-        # o por nombre completo (ej: foto1.jpg.xmp <-> foto1.jpg)
         if stem_sidecar in (stem_principal, nombre_principal):
             candidatos.append(principal)
 
@@ -48,21 +41,17 @@ def _buscar_candidatos_principales(
 def asociar_sidecars(
     analizados: list[ArchivoAnalizado],
 ) -> tuple[list[GrupoArchivo], list[SidecarAsociado]]:
-    """
-    Asocia archivos sidecar con sus correspondientes archivos principales
-    dentro de una misma carpeta de origen.
+    """Asocia sidecars con archivos principales dentro de cada carpeta.
 
-    Parameters:
-    analizados (list[ArchivoAnalizado]): Lista de archivos analizados.
+    Args:
+        analizados (list[ArchivoAnalizado]): Archivos ya analizados.
 
     Returns:
-    tuple[list[GrupoArchivo], list[SidecarAsociado]]:
-        - Lista de grupos con archivo principal y sus sidecars.
-        - Lista de sidecars no asociados (huérfanos o ambiguos).
+        tuple[list[GrupoArchivo], list[SidecarAsociado]]: Grupos creados y
+            sidecars no asociados (huérfanos o ambiguos).
     """
     logger = obtener_logger()
 
-    # Agrupar archivos por directorio contenedor (parent)
     carpetas: dict[Path, list[ArchivoAnalizado]] = {}
     for item in analizados:
         parent = item.archivo.ruta.parent
@@ -88,9 +77,10 @@ def asociar_sidecars(
             elif item.archivo.tipo == TipoArchivo.AUXILIAR:
                 auxiliares_list.append(item)
 
-        # Evaluar cada archivo auxiliar en la carpeta actual
         for sidecar in auxiliares_list:
-            candidatos = _buscar_candidatos_principales(sidecar, principales_list)
+            candidatos = _buscar_candidatos_principales(
+                sidecar, principales_list
+            )
 
             if not candidatos:
                 motivo = f"Sin archivo principal en {carpeta}"
@@ -107,16 +97,21 @@ def asociar_sidecars(
                 )
             elif len(candidatos) == 1:
                 candidato = candidatos[0]
-                principales_map[candidato.archivo.ruta].sidecars.append(sidecar)
+                principales_map[candidato.archivo.ruta].sidecars.append(
+                    sidecar
+                )
                 logger.debug(
                     f"Sidecar asociado: {sidecar.archivo.ruta.name} "
                     f"-> {candidato.archivo.ruta.name}"
                 )
             else:
-                nombres_cand = ", ".join(c.archivo.ruta.name for c in candidatos)
+                nombres_cand = ", ".join(
+                    c.archivo.ruta.name for c in candidatos
+                )
                 motivo = f"Múltiples candidatos encontrados: {nombres_cand}"
                 logger.warning(
-                    f"Sidecar ambiguo detectado: {sidecar.archivo.ruta.name} ({motivo})"
+                    "Sidecar ambiguo detectado: "
+                    f"{sidecar.archivo.ruta.name} ({motivo})"
                 )
                 sidecars_no_asociados.append(
                     SidecarAsociado(

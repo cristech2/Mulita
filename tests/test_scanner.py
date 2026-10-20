@@ -1,6 +1,4 @@
-"""
-Pruebas unitarias para el módulo de escaneo y clasificación (scanner.py).
-"""
+"""Pruebas para el escaneo y la clasificación de archivos."""
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -33,9 +31,11 @@ from mulita.scanner import (
 def test_clasificar_extension_tipos_soportados(
     extension: str, tipo_esperado: TipoArchivo
 ) -> None:
-    """
-    Verifica la correcta clasificación de extensiones soportadas
-    y desconocidas, tanto en mayúsculas como en minúsculas.
+    """Verifica la clasificación de extensiones conocidas y desconocidas.
+
+    Args:
+        extension (str): Extensión que se va a clasificar.
+        tipo_esperado (TipoArchivo): Categoría esperada para la extensión.
     """
     # Act
     tipo_obtenido = clasificar_extension(extension)
@@ -45,9 +45,7 @@ def test_clasificar_extension_tipos_soportados(
 
 
 def test_escanear_directorio_ruta_inexistente() -> None:
-    """
-    Verifica que escanear una ruta inexistente devuelva una lista vacía.
-    """
+    """Verifica que una ruta inexistente produzca una lista vacía."""
     # Arrange
     ruta_inexistente = Path("/ruta/que/no/existe/en/sistema")
 
@@ -59,9 +57,10 @@ def test_escanear_directorio_ruta_inexistente() -> None:
 
 
 def test_escanear_directorio_omite_ocultos(tmp_path: Path) -> None:
-    """
-    Verifica que el escaneo omita archivos y directorios ocultos (que inicien
-    con '.').
+    """Verifica que se omitan los archivos y directorios ocultos.
+
+    Args:
+        tmp_path (Path): Directorio temporal de la prueba.
     """
     # Arrange
     foto_normal = tmp_path / "foto.jpg"
@@ -86,9 +85,10 @@ def test_escanear_directorio_omite_ocultos(tmp_path: Path) -> None:
 
 
 def test_escanear_directorio_excluye_destino_anidado(tmp_path: Path) -> None:
-    """
-    Verifica que el escaneo ignore el contenido del directorio de destino si
-    se encuentra anidado dentro del directorio de origen.
+    """Verifica que el escaneo excluya el destino anidado en el origen.
+
+    Args:
+        tmp_path (Path): Directorio temporal de la prueba.
     """
     # Arrange
     origen = tmp_path / "origen"
@@ -116,9 +116,11 @@ def test_escanear_directorio_excluye_destino_anidado(tmp_path: Path) -> None:
 def test_analizar_directorio_retorna_resultado_escaneo_completo(
     mock_extraer_metadatos: MagicMock, tmp_path: Path
 ) -> None:
-    """
-    Verifica que analizar_directorio retorne una estructura ResultadoEscaneo
-    con los grupos de medios, sidecars asociados y archivos desconocidos.
+    """Verifica el resultado completo del análisis de un directorio.
+
+    Args:
+        mock_extraer_metadatos (MagicMock): Mock de la extracción de metadatos.
+        tmp_path (Path): Directorio temporal de la prueba.
     """
     # Arrange
     mock_extraer_metadatos.return_value = {}
@@ -143,7 +145,9 @@ def test_analizar_directorio_retorna_resultado_escaneo_completo(
     assert len(resultado.grupos) == 2
 
     grupo_foto = next(
-        g for g in resultado.grupos if g.principal.archivo.ruta == foto.resolve()
+        g
+        for g in resultado.grupos
+        if g.principal.archivo.ruta == foto.resolve()
     )
     assert len(grupo_foto.sidecars) == 1
     assert grupo_foto.sidecars[0].archivo.ruta == sidecar.resolve()
@@ -157,9 +161,11 @@ def test_analizar_directorio_retorna_resultado_escaneo_completo(
 def test_analizar_directorio_clasifica_sidecars_huerfanos(
     mock_extraer_metadatos: MagicMock, tmp_path: Path
 ) -> None:
-    """
-    Verifica que los sidecars sin archivo principal en el directorio sean
-    registrados en la lista sidecars_no_asociados con estado HUERFANO.
+    """Verifica que los sidecars sin principal queden como huérfanos.
+
+    Args:
+        mock_extraer_metadatos (MagicMock): Mock de la extracción de metadatos.
+        tmp_path (Path): Directorio temporal de la prueba.
     """
     # Arrange
     mock_extraer_metadatos.return_value = {}
@@ -177,16 +183,20 @@ def test_analizar_directorio_clasifica_sidecars_huerfanos(
         resultado.sidecars_no_asociados[0].archivo.archivo.ruta
         == sidecar_huerfano.resolve()
     )
-    assert resultado.sidecars_no_asociados[0].estado == EstadoAsociacion.HUERFANO
+    assert (
+        resultado.sidecars_no_asociados[0].estado == EstadoAsociacion.HUERFANO
+    )
 
 
 @patch("mulita.scanner.extraer_metadatos")
 def test_analizar_directorio_filtra_rutas_para_metadatos(
     mock_extraer_metadatos: MagicMock, tmp_path: Path
 ) -> None:
-    """
-    Verifica que la extracción de metadatos mediante ExifTool se consulte
-    únicamente para archivos de tipo IMAGEN, RAW y VIDEO.
+    """Verifica que los metadatos se soliciten solo para archivos multimedia.
+
+    Args:
+        mock_extraer_metadatos (MagicMock): Mock de la extracción de metadatos.
+        tmp_path (Path): Directorio temporal de la prueba.
     """
     # Arrange
     mock_extraer_metadatos.return_value = {}

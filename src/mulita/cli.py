@@ -1,8 +1,7 @@
-"""
-Módulo CLI para Mulita.
+"""CLI para Mulita.
 
-Define los comandos, argumentos y opciones de Typer.
-Delega la lógica de negocio a los módulos especializados (scanner, planner, etc.).
+Define los comandos, argumentos y opciones de Typer para el flujo principal
+de la aplicación.
 """
 
 from pathlib import Path
@@ -24,26 +23,39 @@ def main(
     dev: bool = typer.Option(
         False,
         "--dev",
-        help="Modo desarrollo: registra detalles en el log manteniendo la consola limpia.",
+        help=(
+            "Modo desarrollo: registra detalles en el log manteniendo la "
+            "consola limpia."
+        ),
     ),
     debug: bool = typer.Option(
         False,
         "--debug",
         "-v",
         "--verbose",
-        help="Modo debug: muestra todos los detalles tanto en consola como en el log.",
+        help=(
+            "Modo debug: muestra todos los detalles tanto en consola como en "
+            "el log."
+        ),
     ),
     log_file: Path | None = typer.Option(  # noqa: B008
         None,
         "--log-file",
-        help="Directorio o archivo base para guardar el registro de la operación.",
+        help=(
+            "Directorio o archivo base para guardar el "
+            "registro de la operación."
+        ),
         file_okay=True,
         dir_okay=True,
         resolve_path=True,
     ),
 ) -> None:
-    """
-    Configuración global antes de ejecutar cualquier comando.
+    """Configura la aplicación antes de ejecutar cualquier comando.
+
+    Args:
+        dev (bool): Habilita el modo de desarrollo.
+        debug (bool): Habilita el modo verbose de depuración.
+        log_file (Path | None): Ruta base del archivo o directorio de log.
     """
     configurar_logging(dev=dev, debug=debug, log_file=log_file)
 
@@ -59,8 +71,10 @@ def scan(
         resolve_path=True,
     ),
 ) -> None:
-    """
-    Inspecciona recursivamente archivos compatibles y resume resultados.
+    """Inspecciona un directorio y resume el resultado del escaneo.
+
+    Args:
+        origen (Path): Ruta de la carpeta fuente a analizar.
     """
     logger = obtener_logger()
     logger.info(f"Iniciando escaneo en: {origen}")
@@ -70,11 +84,19 @@ def scan(
     resumen = resultado.obtener_resumen()
 
     typer.secho("📊 Resumen del escaneo:", bold=True)
-    typer.echo(f"  🖼️  Imágenes:         {resumen.conteo_por_tipo[TipoArchivo.IMAGEN]}")
-    typer.echo(f"  📸 RAWs:             {resumen.conteo_por_tipo[TipoArchivo.RAW]}")
-    typer.echo(f"  🎥 Videos:           {resumen.conteo_por_tipo[TipoArchivo.VIDEO]}")
     typer.echo(
-        f"  📄 Auxiliares (XMP): {resumen.conteo_por_tipo[TipoArchivo.AUXILIAR]}"
+        "  🖼️  Imágenes:         "
+        f"{resumen.conteo_por_tipo[TipoArchivo.IMAGEN]}"
+    )
+    typer.echo(
+        f"  📸 RAWs:             {resumen.conteo_por_tipo[TipoArchivo.RAW]}"
+    )
+    typer.echo(
+        f"  🎥 Videos:           {resumen.conteo_por_tipo[TipoArchivo.VIDEO]}"
+    )
+    typer.echo(
+        "  📄 Auxiliares (XMP): "
+        f"{resumen.conteo_por_tipo[TipoArchivo.AUXILIAR]}"
     )
 
     if resumen.total_desconocidos > 0:
@@ -84,7 +106,9 @@ def scan(
         )
 
     typer.echo(f"\n📦 Grupos de medios principales: {resumen.total_grupos}")
-    typer.echo(f"🔗 Sidecars asociados:            {resumen.sidecars_asociados}")
+    typer.echo(
+        f"🔗 Sidecars asociados:            {resumen.sidecars_asociados}"
+    )
 
     if resumen.sidecars_huerfanos > 0:
         typer.secho(
@@ -133,10 +157,16 @@ def plan(
         resolve_path=True,
     ),
 ) -> None:
+    """Genera un plan de organización sin modificar archivos.
+
+    Args:
+        origen (Path): Directorio de origen a organizar.
+        destino (Path): Directorio objetivo final.
+        salida (Path | None): Ruta opcional para exportar el plan.
     """
-    Genera y muestra un plan de organización sin modificar archivos.
-    """
-    typer.echo(f"📋 Generando plan para organizar desde {origen} hacia {destino}")
+    typer.echo(
+        f"📋 Generando plan para organizar desde {origen} hacia {destino}"
+    )
     if salida:
         typer.echo(f"El plan se guardará en: {salida}")
 
@@ -163,11 +193,18 @@ def run(
     dry_run: bool = typer.Option(
         True,
         "--dry-run/--ejecutar",
-        help="Mantener activado para simular. Usar --ejecutar para mover archivos reales.",
+        help=(
+            "Mantener activado para simular. Usar --ejecutar para mover "
+            "archivos reales."
+        ),
     ),
 ) -> None:
-    """
-    Ejecuta el plan de organización sobre los archivos.
+    """Ejecuta el plan de organización sobre los archivos.
+
+    Args:
+        origen (Path): Directorio a organizar.
+        destino (Path): Destino final de la organización.
+        dry_run (bool): Si es ``True`` se ejecuta en modo de simulación.
     """
     if dry_run:
         typer.secho(
@@ -176,7 +213,8 @@ def run(
         )
     else:
         typer.secho(
-            "⚠️ MODO EJECUCIÓN: Se realizarán cambios en el sistema de archivos.",
+            "⚠️ MODO EJECUCIÓN: Se realizarán cambios "
+            "en el sistema de archivos.",
             fg=typer.colors.YELLOW,
             bold=True,
         )

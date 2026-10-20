@@ -1,6 +1,4 @@
-"""
-Pruebas unitarias para el módulo de asociación de sidecars (associations.py).
-"""
+"""Pruebas para la asociación de sidecars."""
 
 from datetime import datetime
 from pathlib import Path
@@ -18,7 +16,15 @@ from mulita.models import (
 
 
 def _crear_analizado(ruta: Path, tipo: TipoArchivo) -> ArchivoAnalizado:
-    """Helper para instanciar objetos ArchivoAnalizado en las pruebas."""
+    """Crea una instancia con datos mínimos de prueba.
+
+    Args:
+        ruta (Path): Ruta del archivo a crear.
+        tipo (TipoArchivo): Tipo del archivo.
+
+    Returns:
+        ArchivoAnalizado: Resultado de análisis con datos de prueba.
+    """
     return ArchivoAnalizado(
         archivo=ArchivoEscaneado(ruta=ruta, tipo=tipo),
         fecha_resultado=FechaResultado(
@@ -31,9 +37,10 @@ def _crear_analizado(ruta: Path, tipo: TipoArchivo) -> ArchivoAnalizado:
 
 
 def test_asociar_sidecar_coincidencia_directa_stem(tmp_path: Path) -> None:
-    """
-    Verifica la asociación de un sidecar cuyo stem coincide con el archivo
-    principal (ej: foto.jpg <-> foto.xmp).
+    """Verifica la asociación de un sidecar por nombre base.
+
+    Args:
+        tmp_path (Path): Directorio temporal de la prueba.
     """
     # Arrange
     base_dir = tmp_path / "fotos"
@@ -52,9 +59,10 @@ def test_asociar_sidecar_coincidencia_directa_stem(tmp_path: Path) -> None:
 
 
 def test_asociar_sidecar_coincidencia_nombre_completo(tmp_path: Path) -> None:
-    """
-    Verifica la asociación cuando el sidecar incluye el nombre completo del
-    archivo principal (ej: foto.cr2 <-> foto.cr2.xmp).
+    """Verifica la asociación cuando el sidecar incluye el nombre completo.
+
+    Args:
+        tmp_path (Path): Directorio temporal de la prueba.
     """
     # Arrange
     base_dir = tmp_path / "fotos"
@@ -72,9 +80,10 @@ def test_asociar_sidecar_coincidencia_nombre_completo(tmp_path: Path) -> None:
 
 
 def test_asociar_sidecar_case_insensitive(tmp_path: Path) -> None:
-    """
-    Verifica que la asociación de nombres sea insensible a mayúsculas
-    y minúsculas en extensiones y stems.
+    """Verifica que la asociación ignore mayúsculas y minúsculas.
+
+    Args:
+        tmp_path (Path): Directorio temporal de la prueba.
     """
     # Arrange
     base_dir = tmp_path / "fotos"
@@ -92,9 +101,10 @@ def test_asociar_sidecar_case_insensitive(tmp_path: Path) -> None:
 
 
 def test_asociar_multiples_sidecars_mismo_principal(tmp_path: Path) -> None:
-    """
-    Verifica que múltiples archivos auxiliares válidos se asocien al mismo
-    archivo principal.
+    """Verifica que varios sidecars se asocien al mismo archivo principal.
+
+    Args:
+        tmp_path (Path): Directorio temporal de la prueba.
     """
     # Arrange
     base_dir = tmp_path / "fotos"
@@ -118,9 +128,11 @@ def test_asociar_multiples_sidecars_mismo_principal(tmp_path: Path) -> None:
 def test_asociar_extensiones_auxiliares_soportadas(
     extension_aux: str, tmp_path: Path
 ) -> None:
-    """
-    Valida el soporte de todas las extensiones de archivos auxiliares
-    definidas para el MVP.
+    """Valida el soporte de las extensiones auxiliares del MVP.
+
+    Args:
+        extension_aux (str): Extensión auxiliar que se prueba.
+        tmp_path (Path): Directorio temporal de la prueba.
     """
     # Arrange
     base_dir = tmp_path / "fotos"
@@ -140,13 +152,16 @@ def test_asociar_extensiones_auxiliares_soportadas(
 
 
 def test_detectar_sidecar_huerfano(tmp_path: Path) -> None:
-    """
-    Verifica que un archivo auxiliar sin un medio principal correspondiente
-    en la misma carpeta sea clasificado como HUERFANO.
+    """Verifica que un sidecar sin principal se clasifique como huérfano.
+
+    Args:
+        tmp_path (Path): Directorio temporal de la prueba.
     """
     # Arrange
     base_dir = tmp_path / "fotos"
-    huerfano = _crear_analizado(base_dir / "desconocido.xmp", TipoArchivo.AUXILIAR)
+    huerfano = _crear_analizado(
+        base_dir / "desconocido.xmp", TipoArchivo.AUXILIAR
+    )
 
     # Act
     grupos, no_asociados = asociar_sidecars([huerfano])
@@ -159,10 +174,10 @@ def test_detectar_sidecar_huerfano(tmp_path: Path) -> None:
 
 
 def test_detectar_sidecar_ambiguo(tmp_path: Path) -> None:
-    """
-    Verifica que si un sidecar coincide con más de un candidato principal en
-    el mismo directorio (ej: foto.jpg y foto.cr2), sea clasificado como
-    AMBIGUO y no se asocie a ninguno.
+    """Verifica que un sidecar coincidente con varios archivos sea ambiguo.
+
+    Args:
+        tmp_path (Path): Directorio temporal de la prueba.
     """
     # Arrange
     base_dir = tmp_path / "fotos"
@@ -184,9 +199,10 @@ def test_detectar_sidecar_ambiguo(tmp_path: Path) -> None:
 
 
 def test_aislamiento_entre_carpetas(tmp_path: Path) -> None:
-    """
-    Verifica que un sidecar no se asocie a un archivo principal ubicado en un
-    directorio distinto, asegurando el aislamiento por carpeta.
+    """Verifica que la asociación se limite a la carpeta del sidecar.
+
+    Args:
+        tmp_path (Path): Directorio temporal de la prueba.
     """
     # Arrange
     folder_a = tmp_path / "fotos" / "evento_a"

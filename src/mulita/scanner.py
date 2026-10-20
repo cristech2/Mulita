@@ -1,7 +1,4 @@
-"""
-Módulo para el recorrido recursivo, clasificación y análisis inicial de
-archivos en la fase de escaneo.
-"""
+"""Escaneo recursivo, clasificación y análisis inicial de archivos."""
 
 from pathlib import Path
 
@@ -16,7 +13,14 @@ from mulita.models import (
 )
 from mulita.reporting import obtener_logger
 
-EXTENSIONES_IMAGEN: set[str] = {".jpg", ".jpeg", ".png", ".tiff", ".tif", ".af"}
+EXTENSIONES_IMAGEN: set[str] = {
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".tiff",
+    ".tif",
+    ".af",
+}
 EXTENSIONES_RAW: set[str] = {
     ".cr2",
     ".cr3",
@@ -32,24 +36,40 @@ EXTENSIONES_AUX: set[str] = {".xmp", ".rrdata", ".rrexif"}
 
 
 def clasificar_extension(extension: str) -> TipoArchivo:
-    """Clasifica una extensión de archivo en su categoría correspondiente."""
+    """Clasifica una extensión en su tipo de archivo correspondiente.
+
+    Args:
+        extension (str): Extensión del archivo, por ejemplo ``.jpg``.
+
+    Returns:
+        TipoArchivo: Tipo asociado a la extensión.
+    """
     ext = extension.lower()
     if ext in EXTENSIONES_IMAGEN:
         return TipoArchivo.IMAGEN
-    elif ext in EXTENSIONES_RAW:
+    if ext in EXTENSIONES_RAW:
         return TipoArchivo.RAW
-    elif ext in EXTENSIONES_VIDEO:
+    if ext in EXTENSIONES_VIDEO:
         return TipoArchivo.VIDEO
-    elif ext in EXTENSIONES_AUX:
+    if ext in EXTENSIONES_AUX:
         return TipoArchivo.AUXILIAR
 
     return TipoArchivo.DESCONOCIDO
 
 
 def escanear_directorio(
-    origen: Path, destino_ignorar: Path | None = None
+    origen: Path,
+    destino_ignorar: Path | None = None,
 ) -> list[ArchivoEscaneado]:
-    """Recorre el directorio origen de forma recursiva buscando archivos."""
+    """Recorre recursivamente un directorio y devuelve archivos válidos.
+
+    Args:
+        origen (Path): Directorio raíz a recorrer.
+        destino_ignorar (Path | None): Directorio a excluir del escaneo.
+
+    Returns:
+        list[ArchivoEscaneado]: Archivos encontrados y clasificados.
+    """
     logger = obtener_logger()
     archivos_encontrados: list[ArchivoEscaneado] = []
 
@@ -78,23 +98,27 @@ def escanear_directorio(
 
 
 def analizar_directorio(
-    origen: Path, destino_ignorar: Path | None = None
+    origen: Path,
+    destino_ignorar: Path | None = None,
 ) -> ResultadoEscaneo:
-    """
-    Orquesta la Fase 1 completa: escaneo, consulta de metadatos,
-    resolución de fechas y asociación de sidecars.
+    """Ejecuta el procesamiento completo de la fase de escaneo.
+
+    Args:
+        origen (Path): Directorio raíz a analizar.
+        destino_ignorar (Path | None): Directorio a ignorar durante el escaneo.
+
+    Returns:
+        ResultadoEscaneo: Resultado consolidado del análisis.
     """
     logger = obtener_logger()
     archivos = escanear_directorio(origen, destino_ignorar)
 
-    # Filtrar únicamente los archivos compatibles para extracción de metadatos
     multimedia_rutas = [
         a.ruta
         for a in archivos
         if a.tipo in (TipoArchivo.IMAGEN, TipoArchivo.RAW, TipoArchivo.VIDEO)
     ]
 
-    # Extraer metadatos solo de archivos válidos
     metadatos_map = extraer_metadatos(multimedia_rutas)
 
     resultados: list[ArchivoAnalizado] = []
@@ -104,7 +128,9 @@ def analizar_directorio(
         meta = metadatos_map.get(item.ruta, {})
         res_fecha = resolver_fecha_archivo(item.ruta, item.tipo, meta)
         analizado = ArchivoAnalizado(
-            archivo=item, fecha_resultado=res_fecha, metadatos=meta
+            archivo=item,
+            fecha_resultado=res_fecha,
+            metadatos=meta,
         )
 
         if item.tipo == TipoArchivo.DESCONOCIDO:
@@ -119,7 +145,6 @@ def analizar_directorio(
 
         resultados.append(analizado)
 
-    # Asociar sidecars a sus archivos principales
     grupos, sidecars_no_asociados = asociar_sidecars(resultados)
 
     return ResultadoEscaneo(

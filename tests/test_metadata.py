@@ -1,6 +1,4 @@
-"""
-Pruebas unitarias para el módulo de extracción de metadatos (metadata.py).
-"""
+"""Pruebas para extracción y validación de metadatos."""
 
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -9,17 +7,15 @@ from mulita.metadata import extraer_metadatos, verificar_exiftool
 
 
 def test_verificar_exiftool_presente() -> None:
-    """Verifica la respuesta cuando ExifTool está presente en el PATH."""
-    # Arrange & Act
+    """Verifica que se detecte ExifTool cuando está disponible."""
     with patch("shutil.which", return_value="/usr/bin/exiftool"):
         resultado = verificar_exiftool()
 
-    # Assert
     assert resultado is True
 
 
 def test_verificar_exiftool_ausente() -> None:
-    """Verifica la respuesta cuando ExifTool no está disponible en el PATH."""
+    """Verifica que se informe cuando ExifTool no está disponible."""
     # Arrange & Act
     with patch("shutil.which", return_value=None):
         resultado = verificar_exiftool()
@@ -29,7 +25,11 @@ def test_verificar_exiftool_ausente() -> None:
 
 
 def test_extraer_metadatos_sin_exiftool(tmp_path: Path) -> None:
-    """Comprueba que retorne diccionarios vacíos si ExifTool no está disponible."""
+    """Verifica que no haya metadatos si ExifTool no está disponible.
+
+    Args:
+        tmp_path (Path): Directorio temporal de la prueba.
+    """
     # Arrange
     archivo = tmp_path / "prueba.jpg"
     archivo.write_text("dummy")
@@ -43,15 +43,16 @@ def test_extraer_metadatos_sin_exiftool(tmp_path: Path) -> None:
 
 
 def test_extraer_metadatos_exito_mock_subprocess(tmp_path: Path) -> None:
-    """
-    Verifica que la salida JSON de ExifTool sea parseada y asignada
-    correctamente a cada ruta dada.
+    """Verifica que la salida JSON de ExifTool se asigne a cada ruta.
+
+    Args:
+        tmp_path (Path): Directorio temporal de la prueba.
     """
     # Arrange
     foto = tmp_path / "foto.jpg"
     foto.touch()
 
-    # Convertir la ruta con barras inclinadas '/' para evitar 'invalid escape' en JSON en Windows
+    # Las barras inclinadas evitan escapes inválidos en JSON en Windows.
     ruta_posix = foto.resolve().as_posix()
 
     json_salida = f"""[

@@ -1,16 +1,22 @@
-"""
-Pruebas unitarias para el módulo reporting.py
-"""
+"""Pruebas para el módulo de reportes y logging."""
 
 import logging
 import time
 from pathlib import Path
 
-from mulita.reporting import configurar_logging, generar_ruta_log, rotar_logs_antiguos
+from mulita.reporting import (
+    configurar_logging,
+    generar_ruta_log,
+    rotar_logs_antiguos,
+)
 
 
 def test_generar_ruta_log_crea_timestamp(tmp_path: Path) -> None:
-    """Verifica que se agregue un timestamp al nombre del archivo de log."""
+    """Verifica que el nombre del log incluya marca temporal.
+
+    Args:
+        tmp_path (Path): Directorio temporal para crear archivos de prueba.
+    """
     ruta_base = tmp_path / "reportes" / "escaneo.log"
     ruta_final = generar_ruta_log(ruta_base)
 
@@ -20,7 +26,11 @@ def test_generar_ruta_log_crea_timestamp(tmp_path: Path) -> None:
 
 
 def test_rotar_logs_antiguos_mantiene_maximo(tmp_path: Path) -> None:
-    """Verifica que solo se conserven los 'max_archivos' más recientes."""
+    """Verifica que la rotación conserve solo la cantidad máxima de logs.
+
+    Args:
+        tmp_path (Path): Directorio temporal de la prueba.
+    """
     directorio_logs = tmp_path / "logs"
     directorio_logs.mkdir()
 
@@ -39,11 +49,17 @@ def test_rotar_logs_antiguos_mantiene_maximo(tmp_path: Path) -> None:
 
 
 def test_configurar_logging_modos_dev_y_debug(tmp_path: Path) -> None:
-    """Verifica la asignación correcta de niveles de log según flags dev/debug."""
+    """Verifica los niveles de logging en los modos normal y desarrollo.
+
+    Args:
+        tmp_path (Path): Directorio temporal de la prueba.
+    """
     log_dir = tmp_path / "logs"
 
     # Act: Modo normal
-    logger_normal = configurar_logging(dev=False, debug=False, log_file=log_dir)
+    logger_normal = configurar_logging(
+        dev=False, debug=False, log_file=log_dir
+    )
     assert logger_normal.level == logging.INFO
 
     # Act: Modo dev
