@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mulita"
+version = "0.1.0"
+description = "Organizador multiplataforma de fotos y videos"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "typer",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
