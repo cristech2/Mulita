@@ -1,13 +1,13 @@
 """
-Módulo para el recorrido recursivo y clasificación de archivos.
-
-Se encarga del RF-01 (Escaneo recursivo) y RF-02 (Formatos iniciales).
+Módulo para el recorrido recursivo, clasificación y análisis inicial de archivos.
 """
 
 from dataclasses import dataclass
 from enum import Enum, auto
 from pathlib import Path
 
+from mulita.dates import FechaResultado, resolver_fecha_archivo
+from mulita.metadata import extraer_metadatos
 from mulita.reporting import obtener_logger
 
 
@@ -46,16 +46,19 @@ class ArchivoEscaneado:
     tipo: TipoArchivo
 
 
+@dataclass
+class ArchivoAnalizado:
+    """
+    Representa un archivo escaneado con su resolución de fecha y metadatos.
+    """
+
+    archivo: ArchivoEscaneado
+    fecha_resultado: FechaResultado
+    metadatos: dict[str, str]
+
+
 def clasificar_extension(extension: str) -> TipoArchivo:
-    """
-    Clasifica una extensión de archivo en su categoría correspondiente.
-
-    Parameters:
-    extension (str): La extensión del archivo, incluyendo el punto (ej: '.jpg').
-
-    Returns:
-    TipoArchivo: La categoría a la que pertenece el archivo.
-    """
+    """Clasifica una extensión de archivo en su categoría correspondiente."""
     ext = extension.lower()
     if ext in EXTENSIONES_IMAGEN:
         return TipoArchivo.IMAGEN
@@ -72,19 +75,7 @@ def clasificar_extension(extension: str) -> TipoArchivo:
 def escanear_directorio(
     origen: Path, destino_ignorar: Path | None = None
 ) -> list[ArchivoEscaneado]:
-    """
-    Recorre el directorio origen de forma recursiva buscando archivos.
-
-    Omite carpetas y archivos ocultos (que empiezan con un punto) y
-    excluye completamente el directorio de destino si está anidado en el origen.
-
-    Parameters:
-    origen (Path): La ruta del directorio base a escanear.
-    destino_ignorar (Path | None): Ruta de destino a excluir para evitar recursividad.
-
-    Returns:
-    list[ArchivoEscaneado]: Lista de archivos escaneados y clasificados.
-    """
+    """Recorre el directorio origen de forma recursiva buscando archivos."""
     logger = obtener_logger()
     archivos_encontrados: list[ArchivoEscaneado] = []
 
@@ -110,3 +101,44 @@ def escanear_directorio(
         archivos_encontrados.append(ArchivoEscaneado(ruta=ruta, tipo=tipo))
 
     return archivos_encontrados
+
+
+def analizar_directorio(
+    origen: Path, destino_ignorar: Path | None = None
+) -> list[ArchivoAnalizado]:
+    """
+    Orquesta el escaneo, la consulta de metadatos
+    y la resolución explícita de fechas.
+    """
+    logger = obtener_logger()
+    archivos = escanear_directorio(origen, destino_ignorar)
+
+    # Filtrar únicamente los archivos compatibles para la extracción de metadatos
+    multimedia_rutas = [
+        a.ruta
+        for a in archivos
+        if a.tipo in (TipoArchivo.IMAGEN, TipoArchivo.RAW, TipoArchivo.VIDEO)
+    ]
+
+    # Extraer metadatos solo de archivos válidos
+    metadatos_map = extraer_metadatos(multimedia_rutas)
+
+    resultados: list[ArchivoAnalizado] = []
+    for item in archivos:
+        meta = metadatos_map.get(item.ruta, {})
+        res_fecha = resolver_fecha_archivo(item.ruta, item.tipo, meta)
+
+        if item.tipo == TipoArchivo.DESCONOCIDO:
+            logger.warning(f"Archivo desconocido/no reconocido: {item.ruta}")
+        else:
+            logger.debug(
+                f"Encontrado: {item.ruta} [{item.tipo.name}] -> "
+                f"Fecha: {res_fecha.fecha.strftime('%Y-%m-%d %H:%M:%S')} "
+                f"({res_fecha.fuente})"
+            )
+
+        resultados.append(
+            ArchivoAnalizado(archivo=item, fecha_resultado=res_fecha, metadatos=meta)
+        )
+
+    return resultados

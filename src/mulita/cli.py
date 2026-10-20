@@ -9,8 +9,9 @@ from pathlib import Path
 
 import typer
 
+from mulita.metadata import verificar_exiftool
 from mulita.reporting import configurar_logging, obtener_logger
-from mulita.scanner import TipoArchivo, escanear_directorio
+from mulita.scanner import TipoArchivo, analizar_directorio
 
 app = typer.Typer(
     help="Mulita: Organizador seguro e inspeccionable de fotos y videos.",
@@ -20,8 +21,17 @@ app = typer.Typer(
 
 @app.callback()
 def main(
-    verbose: bool = typer.Option(
-        False, "--verbose", "-v", help="Activa el modo debug con logs detallados."
+    dev: bool = typer.Option(
+        False,
+        "--dev",
+        help="Modo desarrollo: registra detalles en el log manteniendo la consola limpia.",
+    ),
+    debug: bool = typer.Option(
+        False,
+        "--debug",
+        "-v",
+        "--verbose",
+        help="Modo debug: muestra todos los detalles tanto en consola como en el log.",
     ),
     log_file: Path | None = typer.Option(  # noqa: B008
         None,
@@ -35,7 +45,7 @@ def main(
     """
     Configuración global antes de ejecutar cualquier comando.
     """
-    configurar_logging(verbose=verbose, log_file=log_file)
+    configurar_logging(dev=dev, debug=debug, log_file=log_file)
 
 
 @app.command()
@@ -56,15 +66,21 @@ def scan(
     logger.info(f"Iniciando escaneo en: {origen}")
     typer.echo(f"🔍 Iniciando escaneo en: {origen}\n")
 
-    archivos = escanear_directorio(origen)
+    if not verificar_exiftool():
+        logger.warning(
+            "ExifTool no está disponible. Las fechas dependerán de la modificación del sistema."
+        )
+        typer.secho(
+            "⚠️ Advertencia: ExifTool no está instalado. "
+            "Las fechas dependerán de la fecha de modificación del archivo.",
+            fg=typer.colors.YELLOW,
+        )
 
-    conteo = {tipo: 0 for tipo in TipoArchivo}
-    for archivo in archivos:
-        conteo[archivo.tipo] += 1
-        if archivo.tipo == TipoArchivo.DESCONOCIDO:
-            logger.warning(f"Archivo desconocido/no reconocido: {archivo.ruta}")
-        else:
-            logger.debug(f"Encontrado: {archivo.ruta} [{archivo.tipo.name}]")
+    analizados = analizar_directorio(origen)
+
+    conteo: dict[TipoArchivo, int] = {tipo: 0 for tipo in TipoArchivo}
+    for item in analizados:
+        conteo[item.archivo.tipo] += 1
 
     typer.secho("📊 Resumen del escaneo:", bold=True)
     typer.echo(f"  🖼️  Imágenes: {conteo[TipoArchivo.IMAGEN]}")
@@ -78,8 +94,8 @@ def scan(
             fg=typer.colors.YELLOW,
         )
 
-    typer.echo(f"\nTotal de archivos analizados: {len(archivos)}")
-    logger.info(f"Escaneo completado. Total encontrados: {len(archivos)}")
+    typer.echo(f"\nTotal de archivos analizados: {len(analizados)}")
+    logger.info(f"Escaneo completado. Total encontrados: {len(analizados)}")
 
 
 @app.command()
