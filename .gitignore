@@ -20,3 +20,6 @@
 #planes
 
 *.json
+
+#pruebas
+./pruebas/

@@ -60,7 +60,7 @@ definidos en [mulita_mvp_alcance.md](mulita_mvp_alcance.md).
 - [x] Ejecutar la suite automatizada en Windows: 76 pruebas aprobadas.
 - [ ] Ejecutar la suite completa de pruebas y repetir el flujo de extremo a
   extremo en Linux.
-- [ ] Verificar cada traslado antes de declararlo exitoso y probar fallos
+- [x] Verificar cada traslado antes de declararlo exitoso y probar fallos
   parciales de medio/sidecar; decidir e implementar la recuperación o
   documentar claramente la recuperación manual.
 - [x] Ordenar de forma estable los archivos antes de asignar destinos y añadir

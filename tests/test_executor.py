@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -12,7 +13,7 @@ from mulita.executor import (
 )
 from mulita.models import (
     AccionPlan,
-    FalloOperacion,
+    EstadoEjecucionOperacion,
     FechaResultado,
     OperacionPlan,
     PlanOrganizacion,
@@ -83,9 +84,9 @@ def test_ejecutar_operacion_individual_mueve_principal_y_sidecars(
     dir_destino = tmp_path / "destino" / "2026" / "10" / "20" / "IMAGEN"
 
     origen_p = dir_origen / "foto.jpg"
-    origen_p.touch()
+    origen_p.write_bytes(b"contenido_imagen")
     origen_s = dir_origen / "foto.xmp"
-    origen_s.touch()
+    origen_s.write_bytes(b"contenido_sidecar")
 
     destino_p = dir_destino / "foto.jpg"
     destino_s = dir_destino / "foto.xmp"
@@ -100,19 +101,21 @@ def test_ejecutar_operacion_individual_mueve_principal_y_sidecars(
     )
 
     # Act
-    _ejecutar_operacion_individual(operacion)
+    registros = _ejecutar_operacion_individual(operacion)
 
     # Assert
     assert not origen_p.exists()
     assert not origen_s.exists()
     assert destino_p.exists()
     assert destino_s.exists()
+    assert len(registros) == 2
+    assert all(r.estado == EstadoEjecucionOperacion.EXITOSO for r in registros)
 
 
 def test_ejecutar_operacion_individual_falla_si_sidecar_origen_no_existe(
     tmp_path: Path, fecha_dummy: FechaResultado
 ) -> None:
-    """Verifica que si un sidecar no existe en origen se aborte el traslado.
+    """Verifica que si un sidecar no existe en origen se aborte el traslado antes de mover nada.
 
     Args:
         tmp_path (Path): Directorio temporal de la prueba.
@@ -148,10 +151,61 @@ def test_ejecutar_operacion_individual_falla_si_sidecar_origen_no_existe(
     assert not destino_p.exists()
 
 
-def test_ejecutar_plan_completado_con_exito(
+def test_ejecutar_operacion_individual_rollback_exitoso_al_fallar_sidecar(
     tmp_path: Path, fecha_dummy: FechaResultado
 ) -> None:
-    """Verifica la ejecución exitosa de un plan con múltiples operaciones.
+    """Verifica que si falla el traslado de un sidecar, se revierta el traslado del principal.
+
+    Args:
+        tmp_path (Path): Directorio temporal de la prueba.
+        fecha_dummy (FechaResultado): Fixture de fecha de prueba.
+    """
+    # Arrange
+    dir_origen = tmp_path / "origen"
+    dir_origen.mkdir()
+    dir_destino = tmp_path / "destino"
+
+    origen_p = dir_origen / "foto.jpg"
+    origen_p.write_bytes(b"imagen")
+    origen_s = dir_origen / "foto.xmp"
+    origen_s.write_bytes(b"sidecar")
+
+    destino_p = dir_destino / "foto.jpg"
+    destino_s = dir_destino / "foto.xmp"
+
+    operacion = OperacionPlan(
+        origen=origen_p,
+        destino=destino_p,
+        categoria=TipoArchivo.IMAGEN,
+        fecha_resultado=fecha_dummy,
+        sidecars_asociados=[(origen_s, destino_s)],
+        accion=AccionPlan.MOVER,
+    )
+
+    # Simular fallo en el traslado del sidecar tras haber movido exitosamente el principal
+    def efecto_traslado(orig, dest):
+        if orig == origen_s:
+            raise OSError("Error simulado de E/S al mover sidecar")
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        orig.rename(dest)
+
+    with patch(
+        "mulita.executor._trasladar_y_verificar", side_effect=efecto_traslado
+    ):
+        with pytest.raises(
+            RuntimeError, match="Operación revertida exitosamente"
+        ):
+            _ejecutar_operacion_individual(operacion)
+
+    # Assert: El principal debe haber regresado a su origen gracias al rollback
+    assert origen_p.exists()
+    assert not destino_p.exists()
+
+
+def test_ejecutar_plan_completado_con_exito_y_registros_detallados(
+    tmp_path: Path, fecha_dummy: FechaResultado
+) -> None:
+    """Verifica la ejecución exitosa de un plan y la generación de registros detallados.
 
     Args:
         tmp_path (Path): Directorio temporal de la prueba.
@@ -163,9 +217,9 @@ def test_ejecutar_plan_completado_con_exito(
     dir_destino = tmp_path / "destino"
 
     foto1_orig = dir_origen / "foto1.jpg"
-    foto1_orig.touch()
+    foto1_orig.write_bytes(b"1")
     foto2_orig = dir_origen / "foto2.jpg"
-    foto2_orig.touch()
+    foto2_orig.write_bytes(b"2")
 
     op1 = OperacionPlan(
         origen=foto1_orig,
@@ -200,14 +254,17 @@ def test_ejecutar_plan_completado_con_exito(
     assert resultado.procesados_exitosamente == 2
     assert resultado.fallidos == 0
     assert len(resultado.errores) == 0
-    assert (dir_destino / "foto1.jpg").exists()
-    assert (dir_destino / "foto2.jpg").exists()
+    assert len(resultado.registros_detallados) == 2
+    assert all(
+        r.estado == EstadoEjecucionOperacion.EXITOSO
+        for r in resultado.registros_detallados
+    )
 
 
-def test_ejecutar_plan_ignora_operaciones_omitidas(
+def test_ejecutar_plan_registra_operaciones_omitidas(
     tmp_path: Path, fecha_dummy: FechaResultado
 ) -> None:
-    """Verifica que las operaciones marcadas como OMITIR no se procesen.
+    """Verifica que las operaciones marcadas como OMITIR generen registros OMITIDO.
 
     Args:
         tmp_path (Path): Directorio temporal de la prueba.
@@ -244,14 +301,17 @@ def test_ejecutar_plan_ignora_operaciones_omitidas(
     # Assert
     assert resultado.procesados_exitosamente == 0
     assert resultado.fallidos == 0
-    assert foto_orig.exists()
-    assert not (dir_destino / "foto.jpg").exists()
+    assert len(resultado.registros_detallados) == 1
+    assert (
+        resultado.registros_detallados[0].estado
+        == EstadoEjecucionOperacion.OMITIDO
+    )
 
 
-def test_ejecutar_plan_aísla_y_registra_fallos_sin_interrumpir_lote(
+def test_ejecutar_plan_aisla_fallos_y_marca_recuperacion_manual_si_rollback_falla(
     tmp_path: Path, fecha_dummy: FechaResultado
 ) -> None:
-    """Verifica que un fallo individual se registre sin abortar el lote completo.
+    """Verifica que si el rollback falla, se marque requiere_recuperacion_manual = True.
 
     Args:
         tmp_path (Path): Directorio temporal de la prueba.
@@ -262,22 +322,12 @@ def test_ejecutar_plan_aísla_y_registra_fallos_sin_interrumpir_lote(
     dir_origen.mkdir()
     dir_destino = tmp_path / "destino"
 
-    foto_existente = dir_origen / "foto1.jpg"
-    foto_existente.touch()
-
-    foto_inexistente = dir_origen / "no_existe.jpg"
+    foto_orig = dir_origen / "foto.jpg"
+    foto_orig.write_bytes(b"data")
 
     op_fallida = OperacionPlan(
-        origen=foto_inexistente,
-        destino=dir_destino / "no_existe.jpg",
-        categoria=TipoArchivo.IMAGEN,
-        fecha_resultado=fecha_dummy,
-        sidecars_asociados=[],
-        accion=AccionPlan.MOVER,
-    )
-    op_exitosa = OperacionPlan(
-        origen=foto_existente,
-        destino=dir_destino / "foto1.jpg",
+        origen=foto_orig,
+        destino=dir_destino / "foto.jpg",
         categoria=TipoArchivo.IMAGEN,
         fecha_resultado=fecha_dummy,
         sidecars_asociados=[],
@@ -287,21 +337,33 @@ def test_ejecutar_plan_aísla_y_registra_fallos_sin_interrumpir_lote(
     plan = PlanOrganizacion(
         directorio_origen=dir_origen,
         directorio_destino=dir_destino,
-        operaciones=[op_fallida, op_exitosa],
+        operaciones=[op_fallida],
         sidecars_omitidos=[],
         desconocidos=[],
     )
 
-    # Act
-    resultado = ejecutar_plan(plan)
+    # Simular un error en el traslado principal Y además en la reversión
+    with (
+        patch(
+            "mulita.executor._trasladar_y_verificar",
+            side_effect=OSError("Error al mover"),
+        ),
+        patch(
+            "mulita.executor._revertir_movimientos",
+            return_value=["Error crítico al deshacer"],
+        ),
+    ):
+        resultado = ejecutar_plan(plan)
 
     # Assert
-    assert resultado.procesados_exitosamente == 1
+    assert resultado.procesados_exitosamente == 0
     assert resultado.fallidos == 1
     assert len(resultado.errores) == 1
 
     fallo = resultado.errores[0]
-    assert isinstance(fallo, FalloOperacion)
-    assert fallo.operacion == op_fallida
-    assert "El archivo origen no existe" in fallo.error
-    assert (dir_destino / "foto1.jpg").exists()
+    assert fallo.requiere_recuperacion_manual is True
+    assert "Rollback incompleto" in fallo.error
+    assert (
+        resultado.registros_detallados[0].estado
+        == EstadoEjecucionOperacion.FALLIDO_RECUPERACION_MANUAL
+    )

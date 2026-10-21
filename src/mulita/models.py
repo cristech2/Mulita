@@ -38,6 +38,22 @@ class EstadoAsociacion(Enum):
     AMBIGUO = auto()
 
 
+class EstadoEjecucionOperacion(Enum):
+    """Estado final de la ejecución de una operación individual o archivo.
+
+    Attributes:
+        EXITOSO: Traslado verificado y completado correctamente.
+        OMITIDO: La operación estaba marcada para omitir.
+        FALLIDO_REVERTIDO: Ocurrió un error pero el rollback restauró el origen.
+        FALLIDO_RECUPERACION_MANUAL: Error de traslado y la reversión parcial falló.
+    """
+
+    EXITOSO = auto()
+    OMITIDO = auto()
+    FALLIDO_REVERTIDO = auto()
+    FALLIDO_RECUPERACION_MANUAL = auto()
+
+
 @dataclass
 class FechaResultado:
     """Resultado final del análisis de fecha de un archivo.
@@ -282,10 +298,43 @@ class FalloOperacion:
     Attributes:
         operacion (OperacionPlan): Operación que presentó la falla.
         error (str): Mensaje descriptivo de la excepción o fallo.
+        requiere_recuperacion_manual (bool): Indica si la reversión falló y requiere
+            intervención manual del usuario.
     """
 
     operacion: OperacionPlan
     error: str
+    requiere_recuperacion_manual: bool = False
+
+
+@dataclass
+class RegistroOperacionArchivo:
+    """Registro individual del resultado de traslado de un archivo en disco.
+
+    Attributes:
+        origen (Path): Ruta de origen original.
+        destino (Path): Ruta de destino intentada o asignada.
+        estado (EstadoEjecucionOperacion): Resultado de la operación.
+        timestamp (datetime): Fecha y hora exacta de la ejecución.
+        es_sidecar (bool): Indica si el registro corresponde a un sidecar.
+        detalle_error (str): Descripción del error en caso de fallo.
+    """
+
+    origen: Path
+    destino: Path
+    estado: EstadoEjecucionOperacion
+    timestamp: datetime
+    es_sidecar: bool = False
+    detalle_error: str = ""
+
+
+def _lista_registros_vacia() -> list[RegistroOperacionArchivo]:
+    """Crea una lista vacía tipada para registros detallados de operaciones.
+
+    Returns:
+        list[RegistroOperacionArchivo]: Lista vacía inicializada.
+    """
+    return []
 
 
 @dataclass
@@ -296,8 +345,12 @@ class ResultadoEjecucion:
         procesados_exitosamente (int): Cantidad de operaciones completadas.
         fallidos (int): Cantidad de operaciones que presentaron error.
         errores (list[FalloOperacion]): Lista detallada de fallos sucedidos.
+        registros_detallados (list[RegistroOperacionArchivo]): Historial individual por archivo.
     """
 
     procesados_exitosamente: int
     fallidos: int
     errores: list[FalloOperacion] = field(default_factory=_lista_fallos_vacia)
+    registros_detallados: list[RegistroOperacionArchivo] = field(
+        default_factory=_lista_registros_vacia
+    )
