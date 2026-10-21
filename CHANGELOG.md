@@ -1,3 +1,10 @@
+## v0.3.0 (2026-10-21)
+
+### Feat
+
+- **executor**: implementar ejecución segura de planes y conectar comando run
+- **plan-storage**: persistir y cargar planes de organización en JSON
+
 ## v0.2.0 (2026-10-20)
 
 ### Feat
