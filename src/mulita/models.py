@@ -264,3 +264,40 @@ class PlanOrganizacion:
     operaciones: list[OperacionPlan]
     sidecars_omitidos: list[SidecarAsociado]
     desconocidos: list[ArchivoAnalizado]
+
+
+def _lista_fallos_vacia() -> list["FalloOperacion"]:
+    """Crea una lista vacía tipada para fallos de operaciones.
+
+    Returns:
+        list[FalloOperacion]: Lista vacía inicializada.
+    """
+    return []
+
+
+@dataclass
+class FalloOperacion:
+    """Detalle de un fallo producido durante la ejecución de una operación.
+
+    Attributes:
+        operacion (OperacionPlan): Operación que presentó la falla.
+        error (str): Mensaje descriptivo de la excepción o fallo.
+    """
+
+    operacion: OperacionPlan
+    error: str
+
+
+@dataclass
+class ResultadoEjecucion:
+    """Resumen cuantitativo y cualitativo de la ejecución del plan.
+
+    Attributes:
+        procesados_exitosamente (int): Cantidad de operaciones completadas.
+        fallidos (int): Cantidad de operaciones que presentaron error.
+        errores (list[FalloOperacion]): Lista detallada de fallos sucedidos.
+    """
+
+    procesados_exitosamente: int
+    fallidos: int
+    errores: list[FalloOperacion] = field(default_factory=_lista_fallos_vacia)

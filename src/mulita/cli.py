@@ -8,13 +8,15 @@ from pathlib import Path
 
 import typer
 
+from mulita.executor import ejecutar_plan
 from mulita.models import AccionPlan, TipoArchivo
-from mulita.planner import generar_plan
-from mulita.reporting import (
-    configurar_logging,
+from mulita.plan_storage import (
+    buscar_archivos_plan,
+    cargar_plan_json,
     exportar_plan_json,
-    obtener_logger,
 )
+from mulita.planner import generar_plan
+from mulita.reporting import configurar_logging, obtener_logger
 from mulita.scanner import analizar_directorio
 
 app = typer.Typer(
@@ -90,8 +92,7 @@ def scan(
 
     typer.secho("📊 Resumen del escaneo:", bold=True)
     typer.echo(
-        "  🖼️  Imágenes:         "
-        f"{resumen.conteo_por_tipo[TipoArchivo.IMAGEN]}"
+        f"  🖼️  Imágenes:         {resumen.conteo_por_tipo[TipoArchivo.IMAGEN]}"
     )
     typer.echo(
         f"  📸 RAWs:             {resumen.conteo_por_tipo[TipoArchivo.RAW]}"
@@ -229,21 +230,14 @@ def plan(
 
 @app.command()
 def run(
-    origen: Path = typer.Argument(  # noqa: B008
-        ...,
-        help="Ruta de la carpeta origen.",
-        exists=True,
-        file_okay=False,
-        dir_okay=True,
-        resolve_path=True,
-    ),
-    destino: Path = typer.Option(  # noqa: B008
-        ...,
-        "--destino",
-        "-d",
-        help="Ruta de la carpeta destino.",
-        file_okay=False,
-        dir_okay=True,
+    plan_path: Path | None = typer.Argument(  # noqa: B008
+        None,
+        help=(
+            "Ruta opcional al archivo JSON de plan. Si no se especifica, se "
+            "buscarán planes en el directorio actual."
+        ),
+        file_okay=True,
+        dir_okay=False,
         resolve_path=True,
     ),
     dry_run: bool = typer.Option(
@@ -255,22 +249,116 @@ def run(
         ),
     ),
 ) -> None:
-    """Ejecuta el plan de organización sobre los archivos.
+    """Ejecuta un plan de organización guardado previamente.
 
     Args:
-        origen (Path): Directorio a organizar.
-        destino (Path): Destino final de la organización.
+        plan_path (Path | None): Ruta al archivo de plan JSON.
         dry_run (bool): Si es ``True`` se ejecuta en modo de simulación.
     """
+    logger = obtener_logger()
+
+    if plan_path is None:
+        planes = buscar_archivos_plan(Path.cwd())
+        if not planes:
+            typer.secho(
+                "❌ No se encontraron archivos de plan JSON en el directorio "
+                "actual. Ejecute primero 'mulita plan' para generar uno.",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise typer.Exit(code=1)
+
+        if len(planes) == 1:
+            plan_path = planes[0]
+            typer.echo(
+                f"📄 Plan seleccionado automáticamente: {plan_path.name}"
+            )
+        else:
+            typer.echo("📑 Se encontraron varios archivos de plan:")
+            for i, p in enumerate(planes, 1):
+                typer.echo(f"  [{i}] {p.name}")
+            opcion = typer.prompt(
+                "Seleccione el número del plan que desea ejecutar",
+                type=int,
+            )
+            if opcion < 1 or opcion > len(planes):
+                typer.secho(
+                    "❌ Opción inválida seleccionada.",
+                    fg=typer.colors.RED,
+                    err=True,
+                )
+                raise typer.Exit(code=1)
+            plan_path = planes[opcion - 1]
+
+    try:
+        plan_org = cargar_plan_json(plan_path)
+    except (FileNotFoundError, ValueError) as e:
+        logger.error(f"Error al cargar el plan desde {plan_path}: {e}")
+        typer.secho(
+            f"❌ Error al cargar el plan: {e}", fg=typer.colors.RED, err=True
+        )
+        raise typer.Exit(code=1) from e
+
+    total_mover = sum(
+        1 for op in plan_org.operaciones if op.accion == AccionPlan.MOVER
+    )
+    total_sidecars = sum(
+        len(op.sidecars_asociados) for op in plan_org.operaciones
+    )
+
     if dry_run:
         typer.secho(
-            "🛡️ Modo simulación (--dry-run). No se modificará ningún archivo.",
+            "\n🛡️ MODO SIMULACIÓN (--dry-run). No se modificará ningún archivo.",
             fg=typer.colors.CYAN,
-        )
-    else:
-        typer.secho(
-            "⚠️ MODO EJECUCIÓN: Se realizarán cambios "
-            "en el sistema de archivos.",
-            fg=typer.colors.YELLOW,
             bold=True,
         )
+        typer.echo(f"  Plan: {plan_path.name}")
+        typer.echo(f"  Origen: {plan_org.directorio_origen}")
+        typer.echo(f"  Destino: {plan_org.directorio_destino}")
+        typer.echo(f"  Archivos previstos a mover: {total_mover}")
+        typer.echo(f"  Sidecars acompañantes: {total_sidecars}\n")
+        logger.info(f"Simulación de ejecución realizada para {plan_path.name}")
+        return
+
+    typer.secho(
+        "\n⚠️ MODO EJECUCIÓN REAL: Se moverán archivos en el disco.",
+        fg=typer.colors.YELLOW,
+        bold=True,
+    )
+    typer.echo(f"  Plan: {plan_path.name}")
+    typer.echo(
+        f"  Operaciones a realizar: {total_mover} archivos principales."
+    )
+
+    confirmar = typer.confirm("¿Desea proceder con la ejecución del plan?")
+    if not confirmar:
+        typer.echo("Operación cancelada por el usuario.")
+        raise typer.Exit(code=0)
+
+    typer.echo("\n🚀 Ejecutando plan de organización...")
+    logger.info(f"Iniciando ejecución real del plan: {plan_path.name}")
+
+    resultado = ejecutar_plan(plan_org)
+
+    typer.secho("\n📊 Resumen de la ejecución:", bold=True)
+    typer.secho(
+        f"  ✅ Procesados con éxito: {resultado.procesados_exitosamente}",
+        fg=typer.colors.GREEN,
+    )
+
+    if resultado.fallidos > 0:
+        typer.secho(
+            f"  ❌ Operaciones fallidas:  {resultado.fallidos}",
+            fg=typer.colors.RED,
+        )
+        typer.echo("\nDetalle de errores:")
+        for fallo in resultado.errores:
+            typer.secho(
+                f"  • {fallo.operacion.origen.name} -> {fallo.error}",
+                fg=typer.colors.RED,
+            )
+
+    logger.info(
+        f"Ejecución finalizada. Éxitos: {resultado.procesados_exitosamente}, "
+        f"Fallos: {resultado.fallidos}"
+    )
