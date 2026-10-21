@@ -51,10 +51,10 @@ Detectar y asociar XMP antes de mover archivos.
 - Informar XMP huérfanos o ambiguos y dejarlos sin mover en el MVP salvo que exista una regla segura.
 
 ### RF-06 — Plan de organización
-Generar por archivo un plan con origen, destino, categoría, fecha seleccionada y fuente, sidecars asociados, acción prevista y advertencias. La estructura inicial será `AÑO/MES/CATEGORÍA/`, por ejemplo `2026/10/RAW/`. Conservar los nombres originales salvo que haya colisiones.
+Generar por archivo un plan con origen, destino, categoría, fecha seleccionada y fuente, sidecars asociados, acción prevista y advertencias. La estructura inicial será `AÑO/MES/DIA/CATEGORÍA/`, por ejemplo `2026/10/20/RAW/`. Conservar los nombres originales salvo que haya colisiones.
 
 ### RF-07 — Colisiones
-Detectar archivos que producirían el mismo destino o que ya existan allí. No sobrescribir en silencio. Resolver con sufijo incremental determinista o marcar el caso para revisión. Los sidecars deben seguir al archivo principal sin perder su asociación.
+Detectar archivos que producirían el mismo destino o que ya existan allí. No sobrescribir en silencio. Resolver con sufijo incremental determinista o marcar el caso para revisión. Los sidecars deben seguir al archivo principal sin perder su asociación. 
 
 ### RF-08 — Simulación
 El modo de simulación será el comportamiento predeterminado y no modificará archivos.
@@ -73,7 +73,7 @@ Implementar comandos con Typer:
 - `scan`: inspeccionar archivos y resumir resultados.
 - `plan`: generar y mostrar o guardar un plan sin modificar archivos.
 - `run`: ejecutar la organización de forma explícita.
-- Opciones previstas: `--destino`, `--dry-run` y `--verbose`.
+- Opciones previstas: `--destino` para la carpeta de destino, `--ejecutar` para confirmar la ejecucion real, `--plan` para pasar la direccion del plan.
 
 La convención final de confirmación debe ser única y documentada; ejecutar cambios no debe confundirse con una simulación.
 
@@ -83,10 +83,10 @@ La convención final de confirmación debe ser única y documentada; ejecutar ca
 - **RNF-02 Integridad:** no borrar ni sobrescribir archivos silenciosamente; comprobar el resultado antes de dar una operación por exitosa.
 - **RNF-03 Determinismo:** la misma entrada y configuración deben producir el mismo plan y resolver colisiones de forma predecible.
 - **RNF-04 Resiliencia:** archivos corruptos, sin metadatos o con datos inesperados no deben detener todo el lote si se puede continuar de forma segura.
-- **RNF-05 Rendimiento:** recorrer colecciones grandes sin cargar el contenido binario de todos los archivos en memoria; usar consultas por lotes cuando convenga.
-- **RNF-06 Mantenibilidad:** módulos pequeños y testeables; la CLI no debe contener reglas de negocio.
+- **RNF-05 Rendimiento:** recorrer colecciones grandes sin cargar el contenido binario de todos los archivos en memoria; usar consultas por lotes cuando convenga. y cachar resultados de scan para no repetir operaciones costosas en la misma ejecución. 
+- **RNF-06 Mantenibilidad:** módulos pequeños y testeables; la CLI no debe contener reglas de negocio. Cada modulo debe tener una responsabilidad clara y documentada.
 - **RNF-07 Observabilidad:** logs útiles para comprender y reproducir fallos.
-- **RNF-08 Pruebas:** cubrir fechas, XMP, colisiones, rutas y ejecución con carpetas temporales, nunca con la biblioteca personal real.
+- **RNF-08 Pruebas:** cubrir fechas, XMP, colisiones, rutas y ejecución con carpetas temporales, nunca con la biblioteca personal real. Seguir buenas prácticas de pytest y no depender de la ejecución en un orden específico.
 - **RNF-09 Dependencias mínimas:** pocas dependencias Python; detectar si falta ExifTool y explicar cómo instalarlo.
 - **RNF-10 Errores comprensibles:** mensajes accionables y códigos de salida apropiados para la CLI.
 
@@ -119,35 +119,49 @@ ExifTool se invocará como proceso externo desde Python, sin construir comandos 
 mulita/
 ├── pyproject.toml
 ├── README.md
+├── CHANGELOG.md
+├── LICENSE
+├── uv.lock
+├── mulita_mvp_alcance.md
+├── TODO.md
 ├── src/
 │   └── mulita/
-│       ├── __init__.py
-│       ├── cli.py             # Comandos Typer y presentación
-│       ├── scanner.py         # Recorrido y clasificación
-│       ├── metadata.py        # ExifTool y normalización
-│       ├── dates.py           # Política de fechas
+│       ├── __init__.py        # Inicialización del paquete
+|       ├── __main__.py        # Punto de entrada para `python -m mulita`
 │       ├── associations.py    # Asociación de XMP y sidecars
-│       ├── planner.py         # Destinos, colisiones y plan
+│       ├── cli.py             # Comandos Typer y presentación
+│       ├── dates.py           # Política de fechas
 │       ├── executor.py        # Ejecución controlada
-│       └── reporting.py       # Logs, resúmenes y JSON
+│       ├── metadata.py        # ExifTool y normalización
+|       ├── models.py          # Clases de datos tipadas
+|       ├── plan_storage.py      # Guardar y cargar planes en JSON
+│       ├── planner.py         # Destinos, colisiones y plan
+│       ├── reporting.py       # Logs, resúmenes y JSON
+│       └── scanner.py         # Recorrido y clasificación
 └── tests/
-    ├── test_scanner.py
-    ├── test_metadata.py
-    ├── test_dates.py
-    ├── test_associations.py
-    ├── test_planner.py
-    └── test_executor.py
+    ├── test_associations.py   # Pruebas de asociaciones
+    ├── test_cli.py            # Pruebas de CLI
+    ├── test_dates.py          # Pruebas de fechas
+    ├── test_executor.py       # Pruebas de ejecución
+    ├── test_metadata.py       # Pruebas de metadatos
+    ├── test_plan_storage.py   # Pruebas de plan_storage
+    ├── test_planner.py        # Pruebas de planificación
+    ├── test_reporting.py       # Pruebas de reporting
+    └── test_scanner.py        # Pruebas de escaneo
+
 ```
 
 ### Responsabilidad de los módulos
-- `cli.py`: valida opciones y coordina módulos; no contiene reglas de negocio.
-- `scanner.py`: encuentra archivos, filtra extensiones y crea registros de entrada.
-- `metadata.py`: comprueba ExifTool, lee metadatos y normaliza su salida.
-- `dates.py`: decide la fecha organizativa y documenta el criterio.
-- `associations.py`: encuentra sidecars y evita asociaciones ambiguas.
-- `planner.py`: calcula destinos, resuelve colisiones y produce un plan sin tocar archivos.
-- `executor.py`: aplica las operaciones autorizadas y comprueba resultados.
-- `reporting.py`: presenta resúmenes y guarda logs o planes.
+- `associations.py`: asociar sidecars XMP y otros auxiliares a archivos principales.
+- `cli.py`: comandos Typer, argumentos y ayuda.
+- `dates.py`: política de selección de fecha y fuente.
+- `executor.py`: ejecutar el plan de forma segura, registrar errores.
+- `metadata.py`: invocar ExifTool y normalizar metadatos.
+- `models.py`: clases de datos tipadas para archivos, planes y resultados.
+- `plan_storage.py`: guardar y cargar planes en JSON.
+- `planner.py`: generar destinos, resolver colisiones y construir el plan.
+- `reporting.py`: registrar operaciones, errores y generar resúmenes.
+- `scanner.py`: recorrer carpetas, clasificar extensiones y validar rutas.
 
 Esta estructura orienta el diseño, pero no obliga a crear todos los módulos desde el primer día. Se puede empezar por lo esencial y dividir cuando la lógica lo justifique.
 

@@ -13,7 +13,7 @@ El proyecto sigue una lógica de MVP orientada a medios fotográficos y audiovis
 
 ## Estado actual
 
-Mulita está en desarrollo. Las versiones 0.1.0 y 0.2.0 establecieron el escaneo, la extracción de metadatos, la asociación de sidecars y la planificación con resolución de colisiones y exportación JSON. El siguiente hito es implementar la ejecución segura de ese plan; `run` todavía no mueve archivos.
+Mulita está en desarrollo. La versión 0.3.0 incorpora la persistencia de planes en JSON y su ejecución segura. El comando `run` simula los cambios por defecto; para mover archivos reales requiere la opción `--ejecutar` y confirmación explícita.
 
 ## Requisitos
 
@@ -56,15 +56,76 @@ Este comando analiza el contenido del directorio y muestra un resumen de:
 mulita plan "C:/ruta/origen" --destino "C:/ruta/destino" --salida "C:/ruta/plan.json"
 ```
 
-Genera un plan de organización sin mover archivos. Permite revisar el resultado antes de que se implemente la ejecución real.
+Genera un plan de organización sin mover archivos. La opción `--salida` guarda el plan en JSON para revisarlo o ejecutarlo después.
 
-### 3) Ejecución (en desarrollo)
+### 3) Simulación del plan
 
 ```bash
-mulita run "C:/ruta/origen" --destino "C:/ruta/destino" --dry-run
+mulita run "C:/ruta/plan.json"
 ```
 
-El comando está registrado, pero todavía no ejecuta ni simula el flujo; su integración corresponde al Hito 5.
+`run` carga el plan indicado y muestra un resumen sin modificar archivos. Si no se indica un archivo, busca planes JSON válidos en el directorio actual y permite seleccionarlos.
+
+### 4) Ejecución real
+
+```bash
+mulita run "C:/ruta/plan.json" --ejecutar
+```
+
+La ejecución real solicita confirmación antes de procesar el plan y mover los archivos principales con sus sidecars asociados. Los destinos existentes no se sobrescriben; los errores se informan por operación. `--dry-run` es el modo predeterminado.
+
+## Prueba segura con una copia
+
+No pruebes la ejecución real sobre tu biblioteca original. Prepara una copia
+de prueba del origen y una carpeta de destino separada, preferentemente vacía.
+Guarda también el archivo JSON del plan fuera de ambas carpetas.
+
+1. Escanea la copia del origen:
+
+   ```bash
+   mulita scan "C:/pruebas/fotos-origen"
+   ```
+
+2. Genera y guarda un plan hacia el destino de prueba:
+
+   ```bash
+   mulita plan "C:/pruebas/fotos-origen" --destino "C:/pruebas/fotos-destino" --salida "C:/pruebas/plan.json"
+   ```
+
+3. Ejecuta primero la simulación, que es el modo predeterminado:
+
+   ```bash
+   mulita run "C:/pruebas/plan.json" --dry-run
+   ```
+
+   Revisa el resumen y el JSON; confirma que las rutas de origen y destino
+   corresponden a las carpetas de prueba antes de continuar.
+
+4. Solo cuando hayas revisado el plan, ejecuta sobre la copia:
+
+   ```bash
+   mulita run "C:/pruebas/plan.json" --ejecutar
+   ```
+
+   Lee la confirmación que muestra la CLI y cancela si las rutas no son las
+   esperadas. Conserva intacta la biblioteca original y verifica el resultado
+   de la prueba antes de usar Mulita con otros archivos.
+
+## Limitaciones conocidas
+
+- Un medio y sus sidecars se mueven en pasos separados. Si ocurre un error a
+  mitad de la operación, algunos archivos pueden haberse movido y otros no;
+  no hay rollback automático.
+- El plan es una fotografía de las rutas al momento de generarlo. Si cambian
+  los archivos de origen o destino antes de `run`, vuelve a generar y revisar
+  el plan.
+- Si ExifTool no está disponible, Mulita continúa sin esos metadatos y puede
+  usar la fecha de modificación del archivo como respaldo. Revisa el plan
+  cuando las fechas sean importantes.
+- La validación manual con una copia de una biblioteca de 20 GB y la suite de
+  pruebas se realizaron en Windows. El flujo todavía debe validarse en Linux.
+- La prueba de 20 GB no constituye una medición formal de rendimiento; el
+  escaneo no conserva una caché entre ejecuciones.
 
 ## Funcionalidades principales
 
@@ -74,13 +135,8 @@ El comando está registrado, pero todavía no ejecuta ni simula el flujo; su int
 - Extracción de fechas disponibles con ExifTool y selección de fecha según prioridad para fotos y videos. Si no hay una fecha utilizable, usa la fecha de modificación del archivo y la marca como respaldo.
 - Asociación de archivos auxiliares (XMP, RRDATA y RREXIF) con medios de la misma carpeta. Los sidecars huérfanos o ambiguos y los archivos desconocidos se informan y se omiten del plan.
 - Plan para organizar los medios por `AÑO/MES/DÍA/CATEGORÍA`, con sufijos incrementales para evitar colisiones y sidecars asociados al archivo principal.
-- Validación de rutas de origen y destino; resumen de escaneo y plan en la CLI, exportación opcional del plan a JSON y registro de la operación.
-
-### Pendiente para completar el MVP
-
-- El módulo `executor.py` todavía no implementa movimientos.
-- El comando `run` todavía no conecta escaneo, planificación y ejecución. La simulación y la ejecución real desde ese comando, con modo de simulación por defecto, quedan pendientes.
-- Faltan las pruebas del ejecutor para validar movimientos reales y errores por operación con directorios temporales.
+- Validación de rutas de origen y destino; resumen de escaneo y plan en la CLI, exportación y carga de planes JSON y registro de la operación.
+- Ejecución de planes con simulación por defecto, confirmación antes de mover archivos, protección contra sobrescrituras y reporte de fallos individuales.
 
 ## Estructura del proyecto
 
@@ -101,6 +157,7 @@ Mulita/
 │       ├── executor.py
 │       ├── metadata.py
 │       ├── models.py
+│       ├── plan_storage.py
 │       ├── planner.py
 │       ├── reporting.py
 │       └── scanner.py
@@ -110,6 +167,7 @@ Mulita/
 │   ├── test_dates.py
 │   ├── test_executor.py
 │   ├── test_metadata.py
+│   ├── test_plan_storage.py
 │   ├── test_planner.py
 │   ├── test_reporting.py
 │   └── test_scanner.py
@@ -118,7 +176,7 @@ Mulita/
 
 ## Convenciones de diseño
 
-- La ejecución real todavía no está disponible; `--dry-run` será el modo predeterminado.
+- La simulación es el modo predeterminado; la ejecución real requiere `--ejecutar` y confirmación.
 - No sobrescribir silenciosamente archivos existentes.
 - Mantener decisiones explícitas y registradas.
 - Priorizar metadatos confiables y dejar reliquias o casos ambiguos para revisión.
@@ -126,13 +184,7 @@ Mulita/
 
 ## Roadmap
 
-### Hito 5: ejecución segura (pendiente)
-
-- Completar `src/mulita/executor.py` para mover archivos según el plan y crear los directorios de destino necesarios.
-- Trasladar cada archivo principal junto con sus sidecars asociados.
-- Manejar errores por operación sin abortar el resto del lote y preservar la integridad de los archivos.
-- Conectar `run` al flujo escaneo → planificación → ejecución, manteniendo `--dry-run` como opción segura por defecto.
-- Añadir pruebas del ejecutor con directorios temporales para verificar movimientos y errores.
+La ejecución segura de planes prevista para el Hito 5 está implementada en la versión 0.3.0. Consulta el [TODO](TODO.md) para ver las tareas pendientes.
 
 ## Participación e ideas
 

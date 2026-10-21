@@ -2,8 +2,12 @@
 
 ### Feat
 
-- **executor**: implementar ejecución segura de planes y conectar comando run
-- **plan-storage**: persistir y cargar planes de organización en JSON
+- **plan-storage**: guardar y cargar planes de organización en JSON, y
+  localizar planes disponibles para ejecutarlos
+- **executor**: mover archivos y sidecars según el plan, evitando
+  sobrescrituras y registrando errores por operación
+- **cli**: agregar `mulita run` con selección de planes, simulación
+  predeterminada (`--dry-run`) y ejecución real confirmada (`--ejecutar`)
 
 ## v0.2.0 (2026-10-20)
 
