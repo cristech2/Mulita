@@ -267,13 +267,29 @@ def test_cli_run_ejecucion_real_cancelada_por_usuario(tmp_path: Path) -> None:
     assert "Operación cancelada por el usuario" in result.stdout
 
 
-def test_cli_run_ejecucion_real_exitosa(tmp_path: Path) -> None:
-    """Verifica la ejecución real tras la confirmación del usuario.
+@pytest.mark.parametrize(
+    ("nombre_plan", "identificador_auditoria"),
+    [
+        ("plan_20261020", "20261020"),
+        ("plan_plan_20261020", "plan_20261020"),
+    ],
+)
+def test_cli_run_ejecucion_real_exitosa(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    nombre_plan: str,
+    identificador_auditoria: str,
+) -> None:
+    """Verifica ejecución real y auditoría con varios nombres de plan.
 
     Args:
         tmp_path (Path): Directorio temporal de la prueba.
+        monkeypatch (pytest.MonkeyPatch): Fixture para modificar el entorno.
+        nombre_plan (str): Nombre del plan de entrada.
+        identificador_auditoria (str): Identificador esperado del reporte.
     """
     # Arrange
+    monkeypatch.chdir(tmp_path)
     origen = tmp_path / "origen"
     origen.mkdir()
     destino = tmp_path / "destino"
@@ -303,7 +319,7 @@ def test_cli_run_ejecucion_real_exitosa(tmp_path: Path) -> None:
         sidecars_omitidos=[],
         desconocidos=[],
     )
-    plan_file = tmp_path / "plan.json"
+    plan_file = tmp_path / f"{nombre_plan}.json"
     exportar_plan_json(plan, plan_file)
 
     # Act
@@ -317,3 +333,7 @@ def test_cli_run_ejecucion_real_exitosa(tmp_path: Path) -> None:
     assert "Procesados con éxito: 1" in result.stdout
     assert not foto.exists()
     assert destino_foto.exists()
+    ruta_auditoria = (
+        tmp_path / "reportes" / f"ejecucion_{identificador_auditoria}.json"
+    )
+    assert ruta_auditoria.exists()

@@ -14,9 +14,14 @@ from mulita.plan_storage import (
     buscar_archivos_plan,
     cargar_plan_json,
     exportar_plan_json,
+    exportar_resultado_ejecucion_json,
 )
 from mulita.planner import generar_plan
-from mulita.reporting import configurar_logging, obtener_logger
+from mulita.reporting import (
+    configurar_logging,
+    obtener_logger,
+    registrar_resultado_detallado_en_log,
+)
 from mulita.scanner import analizar_directorio
 
 app = typer.Typer(
@@ -228,6 +233,59 @@ def plan(
         logger.info(f"Plan exportado a JSON en: {salida}")
 
 
+def _obtener_ruta_plan_seleccionado(plan_path: Path | None) -> Path:
+    """Resuelve y valida la ruta del archivo de plan a procesar.
+
+    Args:
+        plan_path (Path | None): Ruta proporcionada desde la CLI.
+
+    Returns:
+        Path: Ruta confirmada del archivo de plan.
+
+    Raises:
+        typer.Exit: Si no existen planes o la selección es inválida.
+    """
+    if plan_path is not None:
+        return plan_path
+
+    planes: list[Path] = buscar_archivos_plan(Path.cwd())
+    if not planes:
+        typer.secho(
+            "❌ No se encontraron archivos de plan JSON en el directorio "
+            "actual. Ejecute primero 'mulita plan' para generar uno.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    if len(planes) == 1:
+        seleccionado: Path = planes[0]
+        typer.echo(
+            f"📄 Plan seleccionado automáticamente: {seleccionado.name}"
+        )
+        return seleccionado
+
+    typer.echo("📑 Se encontraron varios archivos de plan:")
+    for i, p in enumerate(planes, 1):
+        typer.echo(f"  [{i}] {p.name}")
+
+    opcion_raw = typer.prompt(
+        "Seleccione el número del plan que desea ejecutar",
+        type=int,
+    )
+    opcion: int = int(opcion_raw)
+
+    if opcion < 1 or opcion > len(planes):
+        typer.secho(
+            "❌ Opción inválida seleccionada.",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1)
+
+    return planes[opcion - 1]
+
+
 @app.command()
 def run(
     plan_path: Path | None = typer.Argument(  # noqa: B008
@@ -256,44 +314,12 @@ def run(
         dry_run (bool): Si es ``True`` se ejecuta en modo de simulación.
     """
     logger = obtener_logger()
-
-    if plan_path is None:
-        planes = buscar_archivos_plan(Path.cwd())
-        if not planes:
-            typer.secho(
-                "❌ No se encontraron archivos de plan JSON en el directorio "
-                "actual. Ejecute primero 'mulita plan' para generar uno.",
-                fg=typer.colors.RED,
-                err=True,
-            )
-            raise typer.Exit(code=1)
-
-        if len(planes) == 1:
-            plan_path = planes[0]
-            typer.echo(
-                f"📄 Plan seleccionado automáticamente: {plan_path.name}"
-            )
-        else:
-            typer.echo("📑 Se encontraron varios archivos de plan:")
-            for i, p in enumerate(planes, 1):
-                typer.echo(f"  [{i}] {p.name}")
-            opcion = typer.prompt(
-                "Seleccione el número del plan que desea ejecutar",
-                type=int,
-            )
-            if opcion < 1 or opcion > len(planes):
-                typer.secho(
-                    "❌ Opción inválida seleccionada.",
-                    fg=typer.colors.RED,
-                    err=True,
-                )
-                raise typer.Exit(code=1)
-            plan_path = planes[opcion - 1]
+    archivo_plan: Path = _obtener_ruta_plan_seleccionado(plan_path)
 
     try:
-        plan_org = cargar_plan_json(plan_path)
+        plan_org = cargar_plan_json(archivo_plan)
     except (FileNotFoundError, ValueError) as e:
-        logger.error(f"Error al cargar el plan desde {plan_path}: {e}")
+        logger.error(f"Error al cargar el plan desde {archivo_plan}: {e}")
         typer.secho(
             f"❌ Error al cargar el plan: {e}", fg=typer.colors.RED, err=True
         )
@@ -312,12 +338,14 @@ def run(
             fg=typer.colors.CYAN,
             bold=True,
         )
-        typer.echo(f"  Plan: {plan_path.name}")
+        typer.echo(f"  Plan: {archivo_plan.name}")
         typer.echo(f"  Origen: {plan_org.directorio_origen}")
         typer.echo(f"  Destino: {plan_org.directorio_destino}")
         typer.echo(f"  Archivos previstos a mover: {total_mover}")
         typer.echo(f"  Sidecars acompañantes: {total_sidecars}\n")
-        logger.info(f"Simulación de ejecución realizada para {plan_path.name}")
+        logger.info(
+            f"Simulación de ejecución realizada para {archivo_plan.name}"
+        )
         return
 
     typer.secho(
@@ -325,7 +353,7 @@ def run(
         fg=typer.colors.YELLOW,
         bold=True,
     )
-    typer.echo(f"  Plan: {plan_path.name}")
+    typer.echo(f"  Plan: {archivo_plan.name}")
     typer.echo(
         f"  Operaciones a realizar: {total_mover} archivos principales."
     )
@@ -336,9 +364,16 @@ def run(
         raise typer.Exit(code=0)
 
     typer.echo("\n🚀 Ejecutando plan de organización...")
-    logger.info(f"Iniciando ejecución real del plan: {plan_path.name}")
+    logger.info(f"Iniciando ejecución real del plan: {archivo_plan.name}")
 
     resultado = ejecutar_plan(plan_org)
+
+    registrar_resultado_detallado_en_log(resultado)
+
+    nombre_stem: str = str(archivo_plan.stem)
+    identificador: str = nombre_stem.removeprefix("plan_")
+    ruta_auditoria = Path("reportes") / f"ejecucion_{identificador}.json"
+    exportar_resultado_ejecucion_json(resultado, ruta_auditoria)
 
     typer.secho("\n📊 Resumen de la ejecución:", bold=True)
     typer.secho(
@@ -351,14 +386,24 @@ def run(
             f"  ❌ Operaciones fallidas:  {resultado.fallidos}",
             fg=typer.colors.RED,
         )
-        typer.echo("\nDetalle de errores:")
+        typer.echo("\nDetalle de errores y recuperaciones:")
         for fallo in resultado.errores:
-            typer.secho(
-                f"  • {fallo.operacion.origen.name} -> {fallo.error}",
-                fg=typer.colors.RED,
-            )
+            if fallo.requiere_recuperacion_manual:
+                typer.secho(
+                    f"  🚨 [RECUPERACIÓN MANUAL REQUERIDA] "
+                    f"{fallo.operacion.origen.name}: {fallo.error}",
+                    fg=typer.colors.RED,
+                    bold=True,
+                )
+            else:
+                typer.secho(
+                    f"  🔄 [REVERTIDO OK] {fallo.operacion.origen.name}: "
+                    f"{fallo.error}",
+                    fg=typer.colors.YELLOW,
+                )
 
+    typer.echo(f"\n📄 Log detallado por archivo guardado en: {ruta_auditoria}")
     logger.info(
         f"Ejecución finalizada. Éxitos: {resultado.procesados_exitosamente}, "
-        f"Fallos: {resultado.fallidos}"
+        f"Fallos: {resultado.fallidos}. Auditoría en {ruta_auditoria}"
     )

@@ -113,9 +113,9 @@ Guarda también el archivo JSON del plan fuera de ambas carpetas.
 
 ## Limitaciones conocidas
 
-- Un medio y sus sidecars se mueven en pasos separados. Si ocurre un error a
-  mitad de la operación, algunos archivos pueden haberse movido y otros no;
-  no hay rollback automático.
+- Un medio y sus sidecars se mueven en pasos separados. Si ocurre un error,
+  Mulita intenta revertir los archivos que ya movió; si la reversión falla,
+  informa que se requiere recuperación manual. El movimiento no es atómico.
 - El plan es una fotografía de las rutas al momento de generarlo. Si cambian
   los archivos de origen o destino antes de `run`, vuelve a generar y revisar
   el plan.
@@ -136,7 +136,10 @@ Guarda también el archivo JSON del plan fuera de ambas carpetas.
 - Asociación de archivos auxiliares (XMP, RRDATA y RREXIF) con medios de la misma carpeta. Los sidecars huérfanos o ambiguos y los archivos desconocidos se informan y se omiten del plan.
 - Plan para organizar los medios por `AÑO/MES/DÍA/CATEGORÍA`, con sufijos incrementales para evitar colisiones y sidecars asociados al archivo principal.
 - Validación de rutas de origen y destino; resumen de escaneo y plan en la CLI, exportación y carga de planes JSON y registro de la operación.
-- Ejecución de planes con simulación por defecto, confirmación antes de mover archivos, protección contra sobrescrituras y reporte de fallos individuales.
+- Ejecución de planes con simulación por defecto, confirmación antes de mover
+  archivos y protección contra sobrescrituras. Verifica los traslados, intenta
+  revertir operaciones fallidas y registra los resultados por archivo en el log
+  y en reportes JSON de auditoría.
 
 ## Estructura del proyecto
 

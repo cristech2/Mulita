@@ -4,8 +4,10 @@
 
 - **plan-storage**: guardar y cargar planes de organización en JSON, y
   localizar planes disponibles para ejecutarlos
-- **executor**: mover archivos y sidecars según el plan, evitando
-  sobrescrituras y registrando errores por operación
+- **executor**: verificar los traslados, intentar revertir operaciones
+  fallidas y señalar cuándo se requiere recuperación manual
+- **reporting**: registrar el resultado detallado por archivo y exportar
+  reportes JSON de auditoría
 - **cli**: agregar `mulita run` con selección de planes, simulación
   predeterminada (`--dry-run`) y ejecución real confirmada (`--ejecutar`)
 

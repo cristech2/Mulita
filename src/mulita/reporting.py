@@ -4,6 +4,8 @@ import logging
 from datetime import datetime
 from pathlib import Path
 
+from mulita.models import EstadoEjecucionOperacion, ResultadoEjecucion
+
 LOGGER_NAME = "mulita"
 DIRECTORIO_REPORTES_DEFAULT = Path("reportes")
 
@@ -109,3 +111,40 @@ def obtener_logger() -> logging.Logger:
         logging.Logger: Logger global de la aplicación.
     """
     return logging.getLogger(LOGGER_NAME)
+
+
+def registrar_resultado_detallado_en_log(
+    resultado: ResultadoEjecucion,
+) -> None:
+    """Escribe en el log el detalle de cada archivo procesado para auditoría.
+
+    Args:
+        resultado (ResultadoEjecucion): Resultado de la ejecución del plan.
+    """
+    logger = obtener_logger()
+    logger.info("--- INICIO DE REGISTRO DETALLADO POR ARCHIVO ---")
+
+    for reg in resultado.registros_detallados:
+        tipo = "Sidecar" if reg.es_sidecar else "Principal"
+        origen_str = reg.origen.as_posix()
+        destino_str = reg.destino.as_posix()
+
+        if reg.estado == EstadoEjecucionOperacion.EXITOSO:
+            logger.info(f"[OK] {tipo}: '{origen_str}' -> '{destino_str}'")
+        elif reg.estado == EstadoEjecucionOperacion.OMITIDO:
+            logger.info(f"[OMITIDO] {tipo}: '{origen_str}'")
+        elif reg.estado == EstadoEjecucionOperacion.FALLIDO_REVERTIDO:
+            logger.error(
+                f"[REVERTIDO] {tipo}: '{origen_str}' - "
+                f"Error: {reg.detalle_error}"
+            )
+        elif (
+            reg.estado == EstadoEjecucionOperacion.FALLIDO_RECUPERACION_MANUAL
+        ):
+            logger.error(
+                f"[RECUPERACION MANUAL REQUERIDA] {tipo}: '{origen_str}' "
+                f"-> Destino fallido: '{destino_str}' - "
+                f"Error: {reg.detalle_error}"
+            )
+
+    logger.info("--- FIN DE REGISTRO DETALLADO POR ARCHIVO ---")

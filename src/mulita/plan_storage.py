@@ -11,8 +11,24 @@ from mulita.models import (
     FechaResultado,
     OperacionPlan,
     PlanOrganizacion,
+    ResultadoEjecucion,
     TipoArchivo,
 )
+
+
+def exportar_resultado_ejecucion_json(
+    resultado: ResultadoEjecucion, ruta_salida: Path
+) -> None:
+    """Exporta el historial detallado por archivo a un JSON de auditoría.
+
+    Args:
+        resultado (ResultadoEjecucion): Resultado retornado por el ejecutor.
+        ruta_salida (Path): Ruta donde se guardará el log JSON de ejecución.
+    """
+    ruta_salida.parent.mkdir(parents=True, exist_ok=True)
+    datos = _convertir_a_json_compatible(resultado)
+    with ruta_salida.open("w", encoding="utf-8") as f:
+        json.dump(datos, f, indent=4, ensure_ascii=False)
 
 
 def _convertir_a_json_compatible(obj: Any) -> Any:

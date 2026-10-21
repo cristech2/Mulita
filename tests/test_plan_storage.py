@@ -8,9 +8,12 @@ import pytest
 
 from mulita.models import (
     AccionPlan,
+    EstadoEjecucionOperacion,
     FechaResultado,
     OperacionPlan,
     PlanOrganizacion,
+    RegistroOperacionArchivo,
+    ResultadoEjecucion,
     TipoArchivo,
 )
 from mulita.plan_storage import (
@@ -18,6 +21,7 @@ from mulita.plan_storage import (
     buscar_archivos_plan,
     cargar_plan_json,
     exportar_plan_json,
+    exportar_resultado_ejecucion_json,
 )
 
 
@@ -97,6 +101,49 @@ def test_exportar_y_cargar_plan_json_ciclo_completo(tmp_path: Path) -> None:
     assert op.fecha_resultado.fecha == datetime(2026, 10, 20, 12, 0)
     assert len(op.sidecars_asociados) == 1
     assert op.sidecars_asociados[0] == (origen_s, destino_s)
+
+
+def test_exportar_resultado_ejecucion_json_guarda_estructura(
+    tmp_path: Path,
+) -> None:
+    """Verifica que el reporte de auditoría de ejecución se exporte a JSON.
+
+    Args:
+        tmp_path (Path): Directorio temporal de la prueba.
+    """
+    # Arrange
+    salida_json = tmp_path / "reporte_ejecucion.json"
+    ahora = datetime(2026, 10, 20, 15, 30, 0)
+
+    registro = RegistroOperacionArchivo(
+        origen=tmp_path / "foto.jpg",
+        destino=tmp_path / "destino.jpg",
+        estado=EstadoEjecucionOperacion.EXITOSO,
+        timestamp=ahora,
+        es_sidecar=False,
+    )
+
+    resultado = ResultadoEjecucion(
+        procesados_exitosamente=1,
+        fallidos=0,
+        errores=[],
+        registros_detallados=[registro],
+    )
+
+    # Act
+    exportar_resultado_ejecucion_json(resultado, salida_json)
+
+    # Assert
+    assert salida_json.exists()
+    with salida_json.open("r", encoding="utf-8") as f:
+        contenido = json.load(f)
+
+    assert contenido["procesados_exitosamente"] == 1
+    assert contenido["fallidos"] == 0
+    assert len(contenido["registros_detallados"]) == 1
+    reg_json = contenido["registros_detallados"][0]
+    assert reg_json["estado"] == "EXITOSO"
+    assert reg_json["timestamp"] == "2026-10-20T15:30:00"
 
 
 def test_cargar_plan_json_archivo_inexistente(tmp_path: Path) -> None:

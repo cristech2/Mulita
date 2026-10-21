@@ -2,12 +2,19 @@
 
 import logging
 import time
+from datetime import datetime
 from pathlib import Path
 
+from mulita.models import (
+    EstadoEjecucionOperacion,
+    RegistroOperacionArchivo,
+    ResultadoEjecucion,
+)
 from mulita.reporting import (
     configurar_logging,
     generar_ruta_log,
     obtener_logger,
+    registrar_resultado_detallado_en_log,
     rotar_logs_antiguos,
 )
 
@@ -83,3 +90,49 @@ def test_obtener_logger_devuelve_instancia_correcta() -> None:
 
     # Assert
     assert logger.name == "mulita"
+
+
+def test_registrar_resultado_detallado_en_log_escribe_eventos(
+    tmp_path: Path,
+) -> None:
+    """Verifica que el registro detallado vuelque eventos por archivo en el log.
+
+    Args:
+        tmp_path (Path): Directorio temporal de la prueba.
+    """
+    # Arrange
+    log_dir = tmp_path / "logs"
+    configurar_logging(dev=True, debug=False, log_file=log_dir)
+
+    ahora = datetime.now()
+    reg_ok = RegistroOperacionArchivo(
+        origen=Path("foto.jpg"),
+        destino=Path("dest/foto.jpg"),
+        estado=EstadoEjecucionOperacion.EXITOSO,
+        timestamp=ahora,
+    )
+    reg_rev = RegistroOperacionArchivo(
+        origen=Path("err.jpg"),
+        destino=Path("dest/err.jpg"),
+        estado=EstadoEjecucionOperacion.FALLIDO_REVERTIDO,
+        timestamp=ahora,
+        detalle_error="Error E/S",
+    )
+
+    resultado = ResultadoEjecucion(
+        procesados_exitosamente=1,
+        fallidos=1,
+        errores=[],
+        registros_detallados=[reg_ok, reg_rev],
+    )
+
+    # Act
+    registrar_resultado_detallado_en_log(resultado)
+
+    # Assert
+    archivos_log = list(log_dir.glob("*.log"))
+    assert len(archivos_log) > 0
+    contenido = archivos_log[0].read_text(encoding="utf-8")
+
+    assert "[OK] Principal: 'foto.jpg' -> 'dest/foto.jpg'" in contenido
+    assert "[REVERTIDO] Principal: 'err.jpg' - Error: Error E/S" in contenido
