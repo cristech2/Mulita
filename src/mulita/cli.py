@@ -16,7 +16,7 @@ from mulita.plan_storage import (
     exportar_plan_json,
     exportar_resultado_ejecucion_json,
 )
-from mulita.planner import generar_plan
+from mulita.planner import generar_plan, validar_rutas
 from mulita.reporting import (
     configurar_logging,
     obtener_logger,
@@ -176,6 +176,14 @@ def plan(
         salida (Path | None): Ruta opcional para exportar el plan.
     """
     logger = obtener_logger()
+
+    try:
+        validar_rutas(origen, destino)
+    except ValueError as e:
+        logger.error(f"Error al validar las rutas del plan: {e}")
+        typer.secho(f"❌ Error: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from e
+
     logger.info(f"Generando plan desde {origen} hacia {destino}")
     typer.echo(
         f"📋 Generando plan para organizar desde {origen} hacia {destino}\n"
@@ -250,6 +258,8 @@ def _obtener_ruta_plan_seleccionado(plan_path: Path | None) -> Path:
 
     planes: list[Path] = buscar_archivos_plan(Path.cwd())
     if not planes:
+        logger = obtener_logger()
+        logger.error("No se encontraron archivos de plan JSON.")
         typer.secho(
             "❌ No se encontraron archivos de plan JSON en el directorio "
             "actual. Ejecute primero 'mulita plan' para generar uno.",
@@ -276,6 +286,8 @@ def _obtener_ruta_plan_seleccionado(plan_path: Path | None) -> Path:
     opcion: int = int(opcion_raw)
 
     if opcion < 1 or opcion > len(planes):
+        logger = obtener_logger()
+        logger.error("Opción inválida seleccionada para el plan: %s", opcion)
         typer.secho(
             "❌ Opción inválida seleccionada.",
             fg=typer.colors.RED,
@@ -360,6 +372,7 @@ def run(
 
     confirmar = typer.confirm("¿Desea proceder con la ejecución del plan?")
     if not confirmar:
+        logger.info("Ejecución real cancelada por el usuario.")
         typer.echo("Operación cancelada por el usuario.")
         raise typer.Exit(code=0)
 
@@ -402,7 +415,7 @@ def run(
                     fg=typer.colors.YELLOW,
                 )
 
-    typer.echo(f"\n📄 Log detallado por archivo guardado en: {ruta_auditoria}")
+    typer.echo(f"\n📄 Auditoría JSON guardada en: {ruta_auditoria}")
     logger.info(
         f"Ejecución finalizada. Éxitos: {resultado.procesados_exitosamente}, "
         f"Fallos: {resultado.fallidos}. Auditoría en {ruta_auditoria}"

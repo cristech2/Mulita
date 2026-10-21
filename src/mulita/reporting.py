@@ -10,6 +10,42 @@ LOGGER_NAME = "mulita"
 DIRECTORIO_REPORTES_DEFAULT = Path("reportes")
 
 
+class _LazyFileHandler(logging.Handler):
+    """Crea el archivo y prepara la rotación al registrar el primer evento."""
+
+    def __init__(self, ruta_base: Path, level: int) -> None:
+        """Inicializa un handler sin crear todavía el archivo de log.
+
+        Args:
+            ruta_base (Path): Ruta base del archivo o directorio de log.
+            level (int): Nivel mínimo de eventos que debe registrar.
+        """
+        super().__init__(level)
+        self._ruta_base = ruta_base
+        self._file_handler: logging.FileHandler | None = None
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Escribe un evento, inicializando el archivo solo si hace falta.
+
+        Args:
+            record (logging.LogRecord): Evento que debe registrarse.
+        """
+        if self._file_handler is None:
+            ruta_log = generar_ruta_log(self._ruta_base)
+            self._file_handler = logging.FileHandler(
+                ruta_log, encoding="utf-8"
+            )
+            self._file_handler.setFormatter(self.formatter)
+
+        self._file_handler.emit(record)
+
+    def close(self) -> None:
+        """Cierra el archivo subyacente si llegó a crearse."""
+        if self._file_handler is not None:
+            self._file_handler.close()
+        super().close()
+
+
 def rotar_logs_antiguos(directorio: Path, max_archivos: int = 5) -> None:
     """Mantiene solo los archivos de log más recientes.
 
@@ -42,7 +78,7 @@ def generar_ruta_log(ruta_base: Path) -> Path:
     Returns:
         Path: Ruta completa del archivo a crear.
     """
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
 
     if ruta_base.is_dir() or ruta_base.suffix == "":
         directorio = ruta_base
@@ -73,8 +109,9 @@ def configurar_logging(
     """
     logger = logging.getLogger(LOGGER_NAME)
 
-    if logger.hasHandlers():
-        logger.handlers.clear()
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+        handler.close()
 
     nivel_general = logging.DEBUG if (dev or debug) else logging.INFO
     logger.setLevel(nivel_general)
@@ -94,10 +131,8 @@ def configurar_logging(
         log_file if log_file is not None else DIRECTORIO_REPORTES_DEFAULT
     )
 
-    ruta_log_real = generar_ruta_log(destino_log)
-    archivo_handler = logging.FileHandler(ruta_log_real, encoding="utf-8")
     nivel_archivo = logging.DEBUG if (dev or debug) else logging.INFO
-    archivo_handler.setLevel(nivel_archivo)
+    archivo_handler = _LazyFileHandler(destino_log, nivel_archivo)
     archivo_handler.setFormatter(formato)
     logger.addHandler(archivo_handler)
 

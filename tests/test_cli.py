@@ -114,24 +114,46 @@ def test_cli_plan_con_exportacion_json(tmp_path: Path) -> None:
     assert "Plan exportado exitosamente" in result.stdout
 
 
-def test_cli_plan_error_rutas_invalidas(tmp_path: Path) -> None:
+def test_cli_plan_error_rutas_invalidas(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     """Verifica que ``plan`` rechace origen y destino coincidentes.
 
     Args:
         tmp_path (Path): Directorio temporal de la prueba.
+        monkeypatch (pytest.MonkeyPatch): Fixture para evitar el escaneo.
     """
     # Arrange
     origen = tmp_path / "origen"
     origen.mkdir()
+    log_dir = tmp_path / "logs"
+
+    def escaneo_no_esperado(_: Path) -> None:
+        pytest.fail("No se debe escanear antes de validar las rutas.")
+
+    monkeypatch.setattr("mulita.cli.analizar_directorio", escaneo_no_esperado)
 
     # Act
     result = runner.invoke(
-        app, ["plan", str(origen), "--destino", str(origen)]
+        app,
+        [
+            "--log-file",
+            str(log_dir),
+            "plan",
+            str(origen),
+            "--destino",
+            str(origen),
+        ],
     )
 
     # Assert
     assert result.exit_code == 1
     assert "Error:" in result.output
+    archivos_log = list(log_dir.glob("*.log"))
+    assert len(archivos_log) == 1
+    assert "no pueden ser el mismo" in archivos_log[0].read_text(
+        encoding="utf-8"
+    )
 
 
 def test_cli_run_sin_plan_en_directorio_falla(
@@ -152,6 +174,11 @@ def test_cli_run_sin_plan_en_directorio_falla(
     # Assert
     assert result.exit_code == 1
     assert "No se encontraron archivos de plan JSON" in result.output
+    archivos_log = list((tmp_path / "reportes").glob("*.log"))
+    assert len(archivos_log) == 1
+    assert "No se encontraron archivos de plan JSON" in archivos_log[
+        0
+    ].read_text(encoding="utf-8")
 
 
 def test_cli_run_simulacion_con_plan_explicito(tmp_path: Path) -> None:

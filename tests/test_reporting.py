@@ -83,6 +83,28 @@ def test_configurar_logging_modos_dev_y_debug(tmp_path: Path) -> None:
     assert logger_dev.level == logging.DEBUG
 
 
+def test_configurar_logging_no_crea_archivo_hasta_registrar_evento(
+    tmp_path: Path,
+) -> None:
+    """Evita archivos vacíos cuando el comando no alcanza a registrar eventos.
+
+    Args:
+        tmp_path (Path): Directorio temporal para los logs.
+    """
+    # Arrange
+    log_dir = tmp_path / "logs"
+    logger = configurar_logging(log_file=log_dir)
+
+    # Act / Assert: configurar no crea la carpeta ni un archivo vacío.
+    assert not log_dir.exists()
+
+    logger.info("Inicio de operación")
+
+    archivos_log = list(log_dir.glob("*.log"))
+    assert len(archivos_log) == 1
+    assert "Inicio de operación" in archivos_log[0].read_text(encoding="utf-8")
+
+
 def test_obtener_logger_devuelve_instancia_correcta() -> None:
     """Verifica que obtener_logger devuelva el logger de la aplicación."""
     # Act
