@@ -175,7 +175,14 @@ def _planificar_grupo(
         )
 
     sidecars_asociados: list[tuple[Path, Path]] = []
-    for sidecar in grupo.sidecars:
+
+    # Ordenamiento estable de sidecars por ruta de origen
+    sidecars_ordenados = sorted(
+        grupo.sidecars,
+        key=lambda s: s.archivo.ruta.as_posix(),
+    )
+
+    for sidecar in sidecars_ordenados:
         origen_sidecar = sidecar.archivo.ruta
         nombre_sidecar_propuesto = _calcular_nuevo_nombre_sidecar(
             origen_principal, destino_principal, origen_sidecar
@@ -217,7 +224,13 @@ def generar_plan(
     destinos_reservados: set[Path] = set()
     operaciones: list[OperacionPlan] = []
 
-    for grupo in resultado_escaneo.grupos:
+    # Ordenamiento estable de grupos por la ruta del archivo principal
+    grupos_ordenados = sorted(
+        resultado_escaneo.grupos,
+        key=lambda g: g.principal.archivo.ruta.as_posix(),
+    )
+
+    for grupo in grupos_ordenados:
         operacion = _planificar_grupo(
             grupo, directorio_destino, destinos_reservados
         )

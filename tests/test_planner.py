@@ -427,3 +427,152 @@ def test_generar_plan_preserva_sidecars_omitidos_y_desconocidos(
     assert plan.sidecars_omitidos[0] == sidecar_na
     assert len(plan.desconocidos) == 1
     assert plan.desconocidos[0] == desconocido
+
+
+def test_generar_plan_es_determinista_ante_diferente_orden_grupos(
+    tmp_path: Path,
+) -> None:
+    """Verifica determinismo al asignar destinos en colisión con distinto orden de escaneo.
+
+    Args:
+        tmp_path (Path): Directorio temporal de la prueba.
+    """
+    # Arrange
+    origen = tmp_path / "origen"
+    origen.mkdir()
+    destino = tmp_path / "destino"
+    destino.mkdir()
+
+    fecha_fija = FechaResultado(
+        fecha=datetime(2026, 10, 20, 10, 0),
+        fuente="DateTimeOriginal",
+        es_respaldo=False,
+    )
+
+    foto_a = origen / "foto_a.jpg"
+    foto_b = origen / "foto_b.jpg"
+    foto_c = origen / "foto_c.jpg"
+    foto_a.touch()
+    foto_b.touch()
+    foto_c.touch()
+
+    grupo_a = GrupoArchivo(
+        principal=ArchivoAnalizado(
+            archivo=ArchivoEscaneado(ruta=foto_a, tipo=TipoArchivo.IMAGEN),
+            fecha_resultado=fecha_fija,
+            metadatos={},
+        )
+    )
+    grupo_b = GrupoArchivo(
+        principal=ArchivoAnalizado(
+            archivo=ArchivoEscaneado(ruta=foto_b, tipo=TipoArchivo.IMAGEN),
+            fecha_resultado=fecha_fija,
+            metadatos={},
+        )
+    )
+    grupo_c = GrupoArchivo(
+        principal=ArchivoAnalizado(
+            archivo=ArchivoEscaneado(ruta=foto_c, tipo=TipoArchivo.IMAGEN),
+            fecha_resultado=fecha_fija,
+            metadatos={},
+        )
+    )
+
+    escaneo_orden_1 = ResultadoEscaneo(
+        grupos=[grupo_a, grupo_b, grupo_c],
+        sidecars_no_asociados=[],
+        desconocidos=[],
+    )
+    escaneo_orden_2 = ResultadoEscaneo(
+        grupos=[grupo_c, grupo_a, grupo_b],
+        sidecars_no_asociados=[],
+        desconocidos=[],
+    )
+
+    # Act
+    plan_1 = generar_plan(escaneo_orden_1, origen, destino)
+    plan_2 = generar_plan(escaneo_orden_2, origen, destino)
+
+    mapa_destinos_1 = {op.origen: op.destino for op in plan_1.operaciones}
+    mapa_destinos_2 = {op.origen: op.destino for op in plan_2.operaciones}
+
+    # Assert
+    assert mapa_destinos_1 == mapa_destinos_2
+
+
+def test_generar_plan_es_determinista_ante_diferente_orden_sidecars(
+    tmp_path: Path,
+) -> None:
+    """Verifica determinismo en la asignación de sidecars sin importar su orden de entrada.
+
+    Args:
+        tmp_path (Path): Directorio temporal de la prueba.
+    """
+    # Arrange
+    origen = tmp_path / "origen"
+    origen.mkdir()
+    destino = tmp_path / "destino"
+    destino.mkdir()
+
+    fecha_fija = FechaResultado(
+        fecha=datetime(2026, 10, 20, 10, 0),
+        fuente="DateTimeOriginal",
+        es_respaldo=False,
+    )
+
+    foto_path = origen / "foto.jpg"
+    sidecar_a_path = origen / "foto.a.xmp"
+    sidecar_b_path = origen / "foto.b.xmp"
+    foto_path.touch()
+    sidecar_a_path.touch()
+    sidecar_b_path.touch()
+
+    principal = ArchivoAnalizado(
+        archivo=ArchivoEscaneado(ruta=foto_path, tipo=TipoArchivo.IMAGEN),
+        fecha_resultado=fecha_fija,
+        metadatos={},
+    )
+    sidecar_a = ArchivoAnalizado(
+        archivo=ArchivoEscaneado(
+            ruta=sidecar_a_path, tipo=TipoArchivo.AUXILIAR
+        ),
+        fecha_resultado=fecha_fija,
+        metadatos={},
+    )
+    sidecar_b = ArchivoAnalizado(
+        archivo=ArchivoEscaneado(
+            ruta=sidecar_b_path, tipo=TipoArchivo.AUXILIAR
+        ),
+        fecha_resultado=fecha_fija,
+        metadatos={},
+    )
+
+    grupo_orden_1 = GrupoArchivo(
+        principal=principal,
+        sidecars=[sidecar_a, sidecar_b],
+    )
+    grupo_orden_2 = GrupoArchivo(
+        principal=principal,
+        sidecars=[sidecar_b, sidecar_a],
+    )
+
+    escaneo_1 = ResultadoEscaneo(
+        grupos=[grupo_orden_1],
+        sidecars_no_asociados=[],
+        desconocidos=[],
+    )
+    escaneo_2 = ResultadoEscaneo(
+        grupos=[grupo_orden_2],
+        sidecars_no_asociados=[],
+        desconocidos=[],
+    )
+
+    # Act
+    plan_1 = generar_plan(escaneo_1, origen, destino)
+    plan_2 = generar_plan(escaneo_2, origen, destino)
+
+    sidecars_asociados_1 = plan_1.operaciones[0].sidecars_asociados
+    sidecars_asociados_2 = plan_2.operaciones[0].sidecars_asociados
+
+    # Assert
+    assert sidecars_asociados_1 == sidecars_asociados_2
