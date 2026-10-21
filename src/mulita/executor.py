@@ -37,6 +37,93 @@ def _validar_existencia_origen_y_destino(origen: Path, destino: Path) -> None:
         )
 
 
+def validar_plan_ejecucion(plan: PlanOrganizacion) -> None:
+    """Prevalida todas las operaciones antes de mover archivos.
+
+    Args:
+        plan (PlanOrganizacion): Plan que se está preparando para ejecutar.
+
+    Raises:
+        ValueError: Si hay archivos faltantes, colisiones o rutas conflictivas.
+    """
+    errores: list[str] = []
+    origenes: set[Path] = set()
+    destinos: set[Path] = set()
+    pares: list[tuple[Path, Path]] = []
+
+    for operacion in plan.operaciones:
+        if operacion.accion != AccionPlan.MOVER:
+            continue
+
+        archivos = [(operacion.origen, operacion.destino)]
+        archivos.extend(operacion.sidecars_asociados)
+
+        for origen, destino in archivos:
+            origen_resuelto = origen.resolve()
+            destino_resuelto = destino.resolve()
+
+            if origen_resuelto in origenes:
+                errores.append(f"Origen repetido en el plan: {origen}")
+            origenes.add(origen_resuelto)
+
+            if destino_resuelto in destinos:
+                errores.append(f"Destino repetido en el plan: {destino}")
+            destinos.add(destino_resuelto)
+            pares.append((origen_resuelto, destino_resuelto))
+
+            if not origen.is_file():
+                errores.append(
+                    f"El archivo origen no existe o no es un archivo: {origen}"
+                )
+
+            if destino.exists():
+                errores.append(f"El archivo destino ya existe: {destino}")
+
+            padre_existente = destino.parent
+            while (
+                not padre_existente.exists()
+                and padre_existente != padre_existente.parent
+            ):
+                padre_existente = padre_existente.parent
+            if padre_existente.exists() and not padre_existente.is_dir():
+                errores.append(
+                    f"El directorio destino no es un directorio: "
+                    f"{padre_existente}"
+                )
+
+    for origen, destino in pares:
+        if origen == destino:
+            errores.append(
+                f"El origen y el destino de una operación coinciden: {origen}"
+            )
+        if origen in destinos:
+            errores.append(
+                f"Un destino del plan coincide con un archivo de origen: "
+                f"{origen}"
+            )
+        if destino in origenes:
+            errores.append(
+                f"Un origen del plan coincide con un archivo de destino: "
+                f"{destino}"
+            )
+
+    rutas_destino = list(destinos)
+    for indice, destino in enumerate(rutas_destino):
+        if any(
+            destino in otro.parents or otro in destino.parents
+            for otro in rutas_destino[indice + 1 :]
+        ):
+            errores.append(
+                f"Hay rutas de destino anidadas incompatibles: {destino}"
+            )
+
+    if errores:
+        raise ValueError(
+            "El plan no se puede ejecutar sin riesgo:\n- "
+            + "\n- ".join(dict.fromkeys(errores))
+        )
+
+
 def _trasladar_y_verificar(origen: Path, destino: Path) -> None:
     """Traslada un archivo a su destino y confirma su integridad básica.
 

@@ -1,3 +1,14 @@
+## [Unreleased]
+
+### Fix
+
+- **cli**: validar la salida del plan antes del escaneo, pedir confirmación
+  para sobrescribir y evitar guardar dentro del origen
+- **executor**: prevalidar las operaciones y preparar la auditoría antes de
+  confirmar y ejecutar movimientos
+- **plan-storage**: guardar los JSON de forma atómica y preservar auditorías
+  anteriores
+
 ## v0.3.0 (2026-10-21)
 
 ### Feat

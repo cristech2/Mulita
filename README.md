@@ -56,7 +56,12 @@ Este comando analiza el contenido del directorio y muestra un resumen de:
 mulita plan "C:/ruta/origen" --destino "C:/ruta/destino" --salida "C:/ruta/plan.json"
 ```
 
-Genera un plan de organización sin mover archivos. La opción `--salida` guarda el plan en JSON para revisarlo o ejecutarlo después.
+Genera un plan de organización sin mover archivos. La opción `--salida` guarda
+el plan en JSON para revisarlo o ejecutarlo después.
+Si el archivo de salida ya existe, Mulita pregunta antes de reemplazarlo.
+Si se rechaza la sobrescritura, se puede indicar otra ruta o cancelar; la
+decisión ocurre antes del escaneo. No se permite guardar el plan dentro del
+directorio de origen.
 
 ### 3) Simulación del plan
 
@@ -72,7 +77,11 @@ mulita run "C:/ruta/plan.json"
 mulita run "C:/ruta/plan.json" --ejecutar
 ```
 
-La ejecución real solicita confirmación antes de procesar el plan y mover los archivos principales con sus sidecars asociados. Los destinos existentes no se sobrescriben; los errores se informan por operación. `--dry-run` es el modo predeterminado.
+La ejecución real valida todas las operaciones del plan y prepara una ruta de
+auditoría antes de solicitar confirmación y mover archivos. Si la ruta de
+auditoría ya existe, se elige un nombre alternativo para conservar el reporte
+anterior. Los destinos existentes no se sobrescriben; los errores se informan
+por operación. `--dry-run` es el modo predeterminado.
 
 ## Prueba segura con una copia
 

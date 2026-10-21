@@ -1,6 +1,8 @@
 """Persistencia, serialización y búsqueda de planes de organización en JSON."""
 
 import json
+import os
+import tempfile
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
@@ -16,6 +18,60 @@ from mulita.models import (
 )
 
 
+def validar_ruta_exportacion(ruta_salida: Path) -> None:
+    """Comprueba que el directorio de una salida permita crear archivos.
+
+    Args:
+        ruta_salida (Path): Ruta final prevista para la exportación.
+
+    Raises:
+        OSError: Si el directorio no se puede crear o no permite escribir.
+        ValueError: Si la ruta de salida ya es un directorio.
+    """
+    if ruta_salida.exists() and ruta_salida.is_dir():
+        raise ValueError(
+            f"La ruta de salida corresponde a un directorio: {ruta_salida}"
+        )
+
+    ruta_salida.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile(
+        dir=ruta_salida.parent,
+        prefix=".mulita-validacion-",
+        delete=True,
+    ):
+        pass
+
+
+def _escribir_json_atomico(datos: Any, ruta_salida: Path) -> None:
+    """Escribe JSON en un temporal y publica el archivo de forma atómica.
+
+    Args:
+        datos (Any): Estructura serializable que se debe guardar.
+        ruta_salida (Path): Ruta final del archivo JSON.
+    """
+    ruta_salida.parent.mkdir(parents=True, exist_ok=True)
+    temporal: Path | None = None
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=ruta_salida.parent,
+            prefix=f".{ruta_salida.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as archivo:
+            temporal = Path(archivo.name)
+            json.dump(datos, archivo, indent=4, ensure_ascii=False)
+            archivo.flush()
+            os.fsync(archivo.fileno())
+
+        os.replace(temporal, ruta_salida)
+    finally:
+        if temporal is not None and temporal.exists():
+            temporal.unlink()
+
+
 def exportar_resultado_ejecucion_json(
     resultado: ResultadoEjecucion, ruta_salida: Path
 ) -> None:
@@ -25,10 +81,8 @@ def exportar_resultado_ejecucion_json(
         resultado (ResultadoEjecucion): Resultado retornado por el ejecutor.
         ruta_salida (Path): Ruta donde se guardará el log JSON de ejecución.
     """
-    ruta_salida.parent.mkdir(parents=True, exist_ok=True)
     datos = _convertir_a_json_compatible(resultado)
-    with ruta_salida.open("w", encoding="utf-8") as f:
-        json.dump(datos, f, indent=4, ensure_ascii=False)
+    _escribir_json_atomico(datos, ruta_salida)
 
 
 def _convertir_a_json_compatible(obj: Any) -> Any:
@@ -66,10 +120,8 @@ def exportar_plan_json(plan: PlanOrganizacion, ruta_salida: Path) -> None:
         plan (PlanOrganizacion): Plan de organización a exportar.
         ruta_salida (Path): Ruta donde se guardará el archivo JSON.
     """
-    ruta_salida.parent.mkdir(parents=True, exist_ok=True)
     datos = _convertir_a_json_compatible(plan)
-    with ruta_salida.open("w", encoding="utf-8") as f:
-        json.dump(datos, f, indent=4, ensure_ascii=False)
+    _escribir_json_atomico(datos, ruta_salida)
 
 
 def cargar_plan_json(ruta_json: Path) -> PlanOrganizacion:

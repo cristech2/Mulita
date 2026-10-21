@@ -3,6 +3,7 @@
 import json
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
@@ -144,6 +145,37 @@ def test_exportar_resultado_ejecucion_json_guarda_estructura(
     reg_json = contenido["registros_detallados"][0]
     assert reg_json["estado"] == "EXITOSO"
     assert reg_json["timestamp"] == "2026-10-20T15:30:00"
+
+
+def test_exportar_plan_preserva_archivo_si_falla_la_escritura(
+    tmp_path: Path,
+) -> None:
+    """No trunca una salida existente si falla la serialización JSON.
+
+    Args:
+        tmp_path (Path): Directorio temporal de la prueba.
+    """
+    salida = tmp_path / "plan.json"
+    salida.write_text("plan anterior", encoding="utf-8")
+    plan = PlanOrganizacion(
+        directorio_origen=tmp_path / "origen",
+        directorio_destino=tmp_path / "destino",
+        operaciones=[],
+        sidecars_omitidos=[],
+        desconocidos=[],
+    )
+
+    with (
+        patch(
+            "mulita.plan_storage.json.dump",
+            side_effect=OSError("fallo de escritura simulado"),
+        ),
+        pytest.raises(OSError, match="fallo de escritura simulado"),
+    ):
+        exportar_plan_json(plan, salida)
+
+    assert salida.read_text(encoding="utf-8") == "plan anterior"
+    assert list(tmp_path.glob("*.tmp")) == []
 
 
 def test_cargar_plan_json_archivo_inexistente(tmp_path: Path) -> None:

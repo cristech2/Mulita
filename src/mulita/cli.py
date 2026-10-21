@@ -8,13 +8,14 @@ from pathlib import Path
 
 import typer
 
-from mulita.executor import ejecutar_plan
+from mulita.executor import ejecutar_plan, validar_plan_ejecucion
 from mulita.models import AccionPlan, TipoArchivo
 from mulita.plan_storage import (
     buscar_archivos_plan,
     cargar_plan_json,
     exportar_plan_json,
     exportar_resultado_ejecucion_json,
+    validar_ruta_exportacion,
 )
 from mulita.planner import generar_plan, validar_rutas
 from mulita.reporting import (
@@ -28,6 +29,83 @@ app = typer.Typer(
     help="Mulita: Organizador seguro e inspeccionable de fotos y videos.",
     no_args_is_help=True,
 )
+
+
+def _resolver_salida_plan(salida: Path, origen: Path) -> Path:
+    """Confirma sobrescritura o solicita otra ruta antes del escaneo.
+
+    Args:
+        salida (Path): Ruta solicitada inicialmente para el plan.
+        origen (Path): Directorio que se analizará.
+
+    Returns:
+        Path: Ruta validada para exportar el plan.
+
+    Raises:
+        OSError: Si no se puede preparar el directorio de salida.
+        ValueError: Si la salida coincide con el origen o está dentro de él.
+        typer.Exit: Si el usuario cancela la operación.
+    """
+    ruta_salida = salida.expanduser().resolve()
+    origen_resuelto = origen.resolve()
+
+    while True:
+        if ruta_salida == origen_resuelto or ruta_salida.is_relative_to(
+            origen_resuelto
+        ):
+            raise ValueError(
+                "La ruta de salida no puede ser el directorio de origen "
+                "ni estar dentro de él."
+            )
+
+        if ruta_salida.exists():
+            if ruta_salida.is_dir():
+                raise ValueError(
+                    f"La ruta de salida corresponde a un directorio: "
+                    f"{ruta_salida}"
+                )
+            if typer.confirm(
+                f"El archivo {ruta_salida} ya existe. ¿Desea sobrescribirlo?",
+                default=False,
+            ):
+                break
+
+            nueva_ruta = typer.prompt(
+                "Ingrese otra ruta para el plan (Enter para cancelar)",
+                default="",
+                show_default=False,
+            )
+            if not nueva_ruta:
+                typer.echo("Operación cancelada por el usuario.")
+                raise typer.Exit(code=0)
+            ruta_salida = Path(nueva_ruta).expanduser().resolve()
+            continue
+
+        break
+
+    validar_ruta_exportacion(ruta_salida)
+    return ruta_salida
+
+
+def _obtener_ruta_auditoria(plan_path: Path) -> Path:
+    """Elige una ruta de auditoría que no sobrescriba reportes previos.
+
+    Args:
+        plan_path (Path): Archivo de plan ejecutado.
+
+    Returns:
+        Path: Ruta libre dentro de ``reportes``.
+    """
+    identificador = plan_path.stem.removeprefix("plan_")
+    base = Path("reportes") / f"ejecucion_{identificador}.json"
+    ruta = base
+    contador = 1
+
+    while ruta.exists():
+        ruta = base.with_name(f"{base.stem}_{contador}{base.suffix}")
+        contador += 1
+
+    return ruta
 
 
 @app.callback()
@@ -179,9 +257,18 @@ def plan(
 
     try:
         validar_rutas(origen, destino)
+        ruta_salida = _resolver_salida_plan(salida, origen) if salida else None
     except ValueError as e:
-        logger.error(f"Error al validar las rutas del plan: {e}")
+        logger.error(f"Error al validar el plan: {e}")
         typer.secho(f"❌ Error: {e}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from e
+    except OSError as e:
+        logger.error(f"No se puede preparar la salida del plan: {e}")
+        typer.secho(
+            f"❌ No se puede preparar la salida del plan: {e}",
+            fg=typer.colors.RED,
+            err=True,
+        )
         raise typer.Exit(code=1) from e
 
     logger.info(f"Generando plan desde {origen} hacia {destino}")
@@ -235,10 +322,19 @@ def plan(
         f"Sidecars: {total_sidecars}, Advertencias: {total_advertencias}"
     )
 
-    if salida:
-        exportar_plan_json(plan_org, salida)
-        typer.echo(f"\n💾 Plan exportado exitosamente en: {salida}")
-        logger.info(f"Plan exportado a JSON en: {salida}")
+    if ruta_salida:
+        try:
+            exportar_plan_json(plan_org, ruta_salida)
+        except OSError as e:
+            logger.error(f"No se pudo exportar el plan a {ruta_salida}: {e}")
+            typer.secho(
+                f"❌ No se pudo guardar el plan en {ruta_salida}: {e}",
+                fg=typer.colors.RED,
+                err=True,
+            )
+            raise typer.Exit(code=1) from e
+        typer.echo(f"\n💾 Plan exportado exitosamente en: {ruta_salida}")
+        logger.info(f"Plan exportado a JSON en: {ruta_salida}")
 
 
 def _obtener_ruta_plan_seleccionado(plan_path: Path | None) -> Path:
@@ -360,6 +456,20 @@ def run(
         )
         return
 
+    try:
+        validar_rutas(plan_org.directorio_origen, plan_org.directorio_destino)
+        validar_plan_ejecucion(plan_org)
+        ruta_auditoria = _obtener_ruta_auditoria(archivo_plan)
+        validar_ruta_exportacion(ruta_auditoria)
+    except (OSError, ValueError) as e:
+        logger.error(f"No se puede preparar la ejecución del plan: {e}")
+        typer.secho(
+            f"❌ No se puede preparar la ejecución del plan: {e}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1) from e
+
     typer.secho(
         "\n⚠️ MODO EJECUCIÓN REAL: Se moverán archivos en el disco.",
         fg=typer.colors.YELLOW,
@@ -383,10 +493,22 @@ def run(
 
     registrar_resultado_detallado_en_log(resultado)
 
-    nombre_stem: str = str(archivo_plan.stem)
-    identificador: str = nombre_stem.removeprefix("plan_")
-    ruta_auditoria = Path("reportes") / f"ejecucion_{identificador}.json"
-    exportar_resultado_ejecucion_json(resultado, ruta_auditoria)
+    try:
+        exportar_resultado_ejecucion_json(resultado, ruta_auditoria)
+    except OSError as e:
+        logger.error(
+            "La ejecución terminó, pero no se pudo guardar la auditoría "
+            "en %s: %s",
+            ruta_auditoria,
+            e,
+        )
+        typer.secho(
+            "❌ La ejecución ya terminó, pero no se pudo guardar la "
+            f"auditoría en {ruta_auditoria}: {e}",
+            fg=typer.colors.RED,
+            err=True,
+        )
+        raise typer.Exit(code=1) from e
 
     typer.secho("\n📊 Resumen de la ejecución:", bold=True)
     typer.secho(
