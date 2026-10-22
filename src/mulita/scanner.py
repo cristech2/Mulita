@@ -1,11 +1,13 @@
 """Escaneo recursivo, clasificación y análisis inicial de archivos."""
 
+import sqlite3
 from collections.abc import Callable
 from pathlib import Path
 
 from mulita.associations import asociar_sidecars
 from mulita.dates import resolver_fecha_archivo
 from mulita.metadata import extraer_metadatos
+from mulita.metadata_cache import CacheMetadatos
 from mulita.models import (
     TIPO_ARCHIVO_POR_EXTENSION,
     ArchivoAnalizado,
@@ -79,12 +81,17 @@ def analizar_directorio(
     origen: Path,
     destino_ignorar: Path | None = None,
     progreso: Callable[[str, int, int | None], None] | None = None,
+    usar_cache: bool = True,
+    ruta_cache: Path | None = None,
 ) -> ResultadoEscaneo:
     """Ejecuta el procesamiento completo de la fase de escaneo.
 
     Args:
         origen (Path): Directorio raíz a analizar.
         destino_ignorar (Path | None): Directorio a ignorar durante el escaneo.
+        usar_cache (bool): Indica si se debe reutilizar el caché persistente.
+        ruta_cache (Path | None): Ruta de la base SQLite, principalmente útil
+            para pruebas.
 
     Returns:
         ResultadoEscaneo: Resultado consolidado del análisis.
@@ -102,7 +109,40 @@ def analizar_directorio(
         if a.tipo in (TipoArchivo.IMAGEN, TipoArchivo.RAW, TipoArchivo.VIDEO)
     ]
 
-    metadatos_map = extraer_metadatos(multimedia_rutas, progreso=progreso)
+    cache: CacheMetadatos | None = None
+    metadatos_map: dict[Path, dict[str, str]] = {}
+    if usar_cache and multimedia_rutas:
+        try:
+            cache = CacheMetadatos(ruta_cache)
+            metadatos_map = cache.obtener(multimedia_rutas)
+        except (OSError, sqlite3.Error, ValueError) as err:
+            logger.warning(
+                "No se pudo leer el caché de metadatos; se analizarán "
+                "los archivos sin reutilizarlo: %s",
+                err,
+            )
+            if cache is not None:
+                cache.cerrar()
+                cache = None
+
+    rutas_pendientes = [
+        ruta for ruta in multimedia_rutas if ruta not in metadatos_map
+    ]
+    metadatos_nuevos = (
+        extraer_metadatos(rutas_pendientes, progreso=progreso)
+        if rutas_pendientes
+        else {}
+    )
+    metadatos_map.update(metadatos_nuevos)
+    if cache is not None:
+        try:
+            cache.guardar(metadatos_nuevos)
+        except (OSError, sqlite3.Error, ValueError) as err:
+            logger.warning(
+                "No se pudo actualizar el caché de metadatos: %s", err
+            )
+        finally:
+            cache.cerrar()
 
     resultados: list[ArchivoAnalizado] = []
     desconocidos: list[ArchivoAnalizado] = []

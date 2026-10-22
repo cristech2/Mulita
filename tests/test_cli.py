@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from typer.testing import CliRunner
@@ -17,6 +18,17 @@ from mulita.models import (
 from mulita.plan_storage import exportar_plan_json
 
 runner = CliRunner()
+
+
+@pytest.fixture(autouse=True)
+def aislar_cache_metadatos(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Mantiene los cachés de la CLI dentro del directorio temporal."""
+    monkeypatch.setattr(
+        "mulita.metadata_cache.obtener_ruta_cache",
+        lambda: tmp_path / ".cache" / "metadatos.sqlite3",
+    )
 
 
 def test_cli_ayuda_base() -> None:
@@ -52,6 +64,29 @@ def test_cli_scan_ejecucion_exitosa(tmp_path: Path) -> None:
     assert "Resumen del escaneo" in result.stdout
     assert "Imágenes:         1" in result.stdout
     assert "Proyectos:        1" in result.stdout
+
+
+@pytest.mark.parametrize("comando", ["scan", "plan"])
+def test_cli_sin_cache_fuerza_extraer_metadatos(
+    comando: str, tmp_path: Path
+) -> None:
+    """Verifica que ambos comandos acepten y apliquen ``--sin-cache``."""
+    origen = tmp_path / "origen"
+    origen.mkdir()
+    foto = origen / "foto.jpg"
+    foto.touch()
+    argumentos = [comando, str(origen), "--sin-cache"]
+    if comando == "plan":
+        destino = tmp_path / "destino"
+        destino.mkdir()
+        argumentos.extend(["--destino", str(destino)])
+
+    with patch("mulita.scanner.extraer_metadatos", return_value={}) as extraer:
+        resultado = runner.invoke(app, argumentos)
+
+    assert resultado.exit_code == 0
+    extraer.assert_called_once()
+    assert extraer.call_args.args == ([foto.resolve()],)
 
 
 def test_cli_scan_directorio_inexistente() -> None:

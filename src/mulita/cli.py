@@ -216,6 +216,11 @@ def scan(
         dir_okay=True,
         resolve_path=True,
     ),
+    sin_cache: bool = typer.Option(
+        False,
+        "--sin-cache",
+        help="Fuerza la extracción de metadatos sin reutilizar el caché.",
+    ),
 ) -> None:
     """Inspecciona un directorio y resume el resultado del escaneo.
 
@@ -231,7 +236,9 @@ def scan(
     )
 
     with _mostrar_progreso("Escaneando archivos...") as progreso:
-        resultado = analizar_directorio(origen, progreso=progreso)
+        resultado = analizar_directorio(
+            origen, progreso=progreso, usar_cache=not sin_cache
+        )
     resumen = resultado.obtener_resumen()
 
     typer.secho("📊 Resumen del escaneo:", bold=True)
@@ -310,6 +317,11 @@ def plan(
         dir_okay=False,
         resolve_path=True,
     ),
+    sin_cache: bool = typer.Option(
+        False,
+        "--sin-cache",
+        help="Fuerza la extracción de metadatos sin reutilizar el caché.",
+    ),
 ) -> None:
     """Genera un plan de organización sin modificar archivos.
 
@@ -345,7 +357,9 @@ def plan(
 
     try:
         with _mostrar_progreso("Escaneando archivos...") as progreso:
-            resultado = analizar_directorio(origen, progreso=progreso)
+            resultado = analizar_directorio(
+                origen, progreso=progreso, usar_cache=not sin_cache
+            )
         with _mostrar_progreso(
             "Calculando destinos y resolviendo posibles colisiones..."
         ):

@@ -2,6 +2,9 @@
 
 ### Feat
 
+- **scanner**: reutilizar metadatos mediante un caché SQLite persistente,
+  invalidar entradas cuando cambia el archivo y permitir omitir el caché con
+  `--sin-cache`
 - **scanner**: reconocer y organizar proyectos de edición, y validar que cada
   extensión corresponda a una sola categoría
 - **cli**: mostrar etapas claras y progreso medible durante escaneos,

@@ -211,7 +211,7 @@ def test_analizar_directorio_retorna_resultado_escaneo_completo(
     desconocido.touch()
 
     # Act
-    resultado = analizar_directorio(tmp_path)
+    resultado = analizar_directorio(tmp_path, usar_cache=False)
 
     # Assert
     assert isinstance(resultado, ResultadoEscaneo)
@@ -254,7 +254,7 @@ def test_analizar_directorio_clasifica_sidecars_huerfanos(
     sidecar_huerfano.touch()
 
     # Act
-    resultado = analizar_directorio(tmp_path)
+    resultado = analizar_directorio(tmp_path, usar_cache=False)
 
     # Assert
     assert len(resultado.grupos) == 0
@@ -297,7 +297,7 @@ def test_analizar_directorio_filtra_rutas_para_metadatos(
     desconocido.touch()
 
     # Act
-    analizar_directorio(tmp_path)
+    analizar_directorio(tmp_path, usar_cache=False)
 
     # Assert
     mock_extraer_metadatos.assert_called_once()

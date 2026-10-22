@@ -10,8 +10,8 @@ definidos en [mulita_mvp_alcance.md](mulita_mvp_alcance.md).
   biblioteca real de 20 GB. El Hito 6 sigue pendiente de validación en Linux
   y de cerrar las brechas técnicas anotadas abajo.
 - **Módulos principales:** `cli.py`, `scanner.py`, `metadata.py`,
-  `dates.py`, `associations.py`, `planner.py`, `plan_storage.py`,
-  `executor.py`, `models.py` y `reporting.py`.
+  `metadata_cache.py`, `dates.py`, `associations.py`, `planner.py`,
+  `plan_storage.py`, `executor.py`, `models.py` y `reporting.py`.
 - **Validación manual registrada:** `scan`, `plan` y `run` funcionaron según
   lo esperado en Windows. El plan adjunto contiene 1.893 operaciones
   principales y 171 pares de sidecars; el árbol antes/después muestra la
@@ -48,7 +48,7 @@ definidos en [mulita_mvp_alcance.md](mulita_mvp_alcance.md).
 | **RNF-02** | Integridad            | `[/] Parcial`  | El ejecutor prevalida las operaciones, verifica los traslados e intenta revertir los movimientos ante fallos; si la reversión falla, informa que se requiere recuperación manual. El movimiento de varios archivos no es atómico. |
 | **RNF-03** | Determinismo          | `[x] Cumplido` | El planificador ordena grupos y sidecars antes de resolver colisiones; las pruebas verifican resultados idénticos ante distinto orden de entrada.                                                                        |
 | **RNF-04** | Resiliencia           | `[x] Cumplido` | Los fallos de ejecución se registran por operación para continuar procesando el lote.                                                                                                                                     |
-| **RNF-05** | Rendimiento           | `[/] Parcial`  | Se validó el flujo con una copia de una biblioteca de 20 GB en Windows y la extracción usa procesamiento por lotes. No hay caché de resultados de escaneo; falta medir/documentar tiempos y validar en Linux.             |
+| **RNF-05** | Rendimiento           | `[/] Parcial`  | El caché SQLite reutiliza metadatos sin cambios entre `scan` y `plan`; falta validar en Linux y hacer mediciones controladas.                                                                                  |
 | **RNF-06** | Mantenibilidad        | `[x] Cumplido` | Las responsabilidades se distribuyen entre módulos de escaneo, metadatos, fechas, asociaciones, planificación, persistencia, ejecución y CLI.                                                                             |
 | **RNF-07** | Observabilidad        | `[x] Cumplido` | Hay registros configurables con marca de tiempo, estados detallados por archivo en el log y reportes JSON de auditoría; la CLI comunica etapas y progreso medible durante las operaciones largas.                         |
 | **RNF-08** | Pruebas               | `[/] Parcial`  | La suite automatizada (140 pruebas) pasó en Windows y se hizo una prueba manual de extremo a extremo con una copia de 20 GB. Falta ejecutar la suite y el flujo manual en Linux.                                           |
@@ -61,7 +61,7 @@ definidos en [mulita_mvp_alcance.md](mulita_mvp_alcance.md).
   biblioteca real de 20 GB; comparar la estructura antes/después.
 - [x] Generar el plan JSON y completar la ejecución real en esa prueba:
   1.893 operaciones principales y 171 pares de sidecars.
-- [x] Ejecutar la suite automatizada en Windows: 140 pruebas aprobadas.
+- [x] Ejecutar la suite automatizada en Windows: 145 pruebas aprobadas.
 - [ ] Ejecutar la suite completa de pruebas y repetir el flujo de extremo a
   extremo en Linux.
 - [x] Verificar cada traslado antes de declararlo exitoso y probar fallos
@@ -77,6 +77,8 @@ definidos en [mulita_mvp_alcance.md](mulita_mvp_alcance.md).
 - [x] Prevalidar el lote y preparar una ruta de auditoría antes de confirmar
   movimientos; preservar auditorías existentes y guardar JSON atómicamente.
 - [ ] Hacer que el aviso de ExifTool ausente indique cómo instalarlo.
-- [ ] Evaluar e implementar la caché de resultados de escaneo que pide RNF-05.
+- [x] Implementar el caché persistente de metadatos para `scan` y `plan`,
+  validando las entradas por tamaño y fecha de modificación; permitir omitirlo
+  con `--sin-cache`.
 - [x] Documentar en el README las limitaciones conocidas y los pasos seguros
   para probar el MVP sobre copias de archivos.

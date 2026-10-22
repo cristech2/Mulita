@@ -46,16 +46,25 @@ Al redirigir la salida, muestra los mensajes de etapa sin animación.
 
 En `scan` y `plan`, el conteo aumenta mientras se descubren archivos; como el
 total no se conoce hasta terminar el recorrido, esa etapa no muestra un
-porcentaje. Después, la lectura de metadatos se informa por lotes de hasta 100
-archivos con ExifTool y el análisis de fechas/clasificación avanza archivo por
-archivo. En `run --ejecutar`, el avance corresponde a operaciones completadas,
-incluidas las fallidas u omitidas; no representa el progreso interno de mover
-un archivo individual.
+porcentaje. Los metadatos se conservan en un caché SQLite del perfil del
+usuario y se reutilizan mientras coincidan el tamaño y la fecha de
+modificación del archivo. Los archivos nuevos o modificados se procesan por
+lotes de hasta 100 con ExifTool. `plan` siempre vuelve a calcular los destinos
+y las colisiones. Usa `--sin-cache` en `scan` o `plan` para forzar una nueva
+extracción. En `run --ejecutar`, el avance corresponde a operaciones
+completadas, incluidas las fallidas u omitidas; no representa el progreso
+interno de mover un archivo individual.
 
 ### 1) Escaneo de un directorio
 
 ```bash
 mulita scan "C:/ruta/origen"
+```
+
+Para ignorar el caché persistente y volver a extraer los metadatos:
+
+```bash
+mulita scan "C:/ruta/origen" --sin-cache
 ```
 
 Este comando analiza el contenido del directorio y muestra un resumen de:
@@ -78,7 +87,8 @@ el plan en JSON para revisarlo o ejecutarlo después.
 Si el archivo de salida ya existe, Mulita pregunta antes de reemplazarlo.
 Si se rechaza la sobrescritura, se puede indicar otra ruta o cancelar; la
 decisión ocurre antes del escaneo. No se permite guardar el plan dentro del
-directorio de origen.
+directorio de origen. La opción `--sin-cache` fuerza la extracción de
+metadatos; el cálculo del plan siempre se realiza de nuevo.
 
 ### 3) Simulación del plan
 
@@ -150,8 +160,8 @@ Guarda también el archivo JSON del plan fuera de ambas carpetas.
   cuando las fechas sean importantes.
 - La validación manual con una copia de una biblioteca de 20 GB y la suite de
   pruebas se realizaron en Windows. El flujo todavía debe validarse en Linux.
-- La prueba de 20 GB no constituye una medición formal de rendimiento; el
-  escaneo no conserva una caché entre ejecuciones.
+- El caché persistente reutiliza metadatos si tamaño y fecha de modificación
+  no cambiaron; el plan se recalcula en cada ejecución.
 
 ## Funcionalidades principales
 
@@ -183,6 +193,7 @@ Mulita/
 │       ├── __init__.py
 │       ├── __main__.py
 │       ├── associations.py
+│       ├── metadata_cache.py
 │       ├── cli.py
 │       ├── dates.py
 │       ├── executor.py
@@ -194,6 +205,7 @@ Mulita/
 │       └── scanner.py
 ├── tests/
 │   ├── test_associations.py
+│   ├── test_metadata_cache.py
 │   ├── test_cli.py
 │   ├── test_dates.py
 │   ├── test_executor.py
