@@ -73,7 +73,15 @@ Implementar comandos con Typer:
 - `scan`: inspeccionar archivos y resumir resultados.
 - `plan`: generar y mostrar o guardar un plan sin modificar archivos.
 - `run`: ejecutar la organización de forma explícita.
-- Opciones previstas: `--destino` para la carpeta de destino, `--ejecutar` para confirmar la ejecucion real, `--plan` para pasar la direccion del plan.
+- Opciones implementadas: `--destino` para la carpeta de destino,
+  `--ejecutar` para confirmar la ejecución real y la ruta JSON del plan como
+  argumento posicional de `run`.
+- Los comandos comunican en lenguaje claro las etapas de las tareas largas.
+  En terminales interactivas, Rich muestra el conteo de archivos descubiertos,
+  el avance de extracción de metadatos por lotes y las operaciones completadas.
+  Cuando no se conoce el total o la operación no expone avance interno, se
+  muestra un spinner en lugar de un porcentaje estimado; en salida redirigida
+  se conservan los mensajes de etapa sin animación.
 
 La convención final de confirmación debe ser única y documentada; ejecutar cambios no debe confundirse con una simulación.
 
@@ -96,6 +104,7 @@ La convención final de confirmación debe ser única y documentada; ejecutar ca
 | ---------------- | ----------------------------------------------- | ------------------------------------------------- |
 | Lenguaje         | Python 3.11+                                    | Lógica multiplataforma                            |
 | CLI              | **Typer** (Sebastián Ramírez, `tiangolo/typer`) | Comandos, argumentos, opciones y ayuda automática |
+| Salida/progreso  | **Rich**                                        | Barras de progreso, spinners y mensajes de etapa  |
 | Metadatos        | ExifTool                                        | Lectura de metadatos de fotos y videos            |
 | Archivos         | `pathlib`, `shutil`, `os`                       | Rutas, recorrido y operaciones                    |
 | Modelos          | `dataclasses`, `enum`, `typing`                 | Datos tipados del análisis y plan                 |

@@ -9,6 +9,7 @@ description = "Organizador multiplataforma de fotos y videos"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
+    "rich",
     "typer",
 ]
 [project.scripts]

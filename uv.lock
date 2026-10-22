@@ -441,6 +441,7 @@ name = "mulita"
 version = "0.3.0"
 source = { editable = "." }
 dependencies = [
+    { name = "rich" },
     { name = "typer" },
 ]
 
@@ -453,7 +454,10 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "typer" }]
+requires-dist = [
+    { name = "rich" },
+    { name = "typer" },
+]
 
 [package.metadata.requires-dev]
 dev = [

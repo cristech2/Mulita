@@ -4,9 +4,20 @@ Define los comandos, argumentos y opciones de Typer para el flujo principal
 de la aplicación.
 """
 
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from pathlib import Path
 
 import typer
+from rich.console import Console
+from rich.progress import (
+    BarColumn,
+    Progress,
+    SpinnerColumn,
+    TaskProgressColumn,
+    TextColumn,
+    TimeElapsedColumn,
+)
 
 from mulita.executor import ejecutar_plan, validar_plan_ejecucion
 from mulita.models import AccionPlan, TipoArchivo
@@ -29,6 +40,51 @@ app = typer.Typer(
     help="Mulita: Organizador seguro e inspeccionable de fotos y videos.",
     no_args_is_help=True,
 )
+
+
+@contextmanager
+def _mostrar_progreso(
+    mensaje: str,
+) -> Iterator[Callable[[str, int, int | None], None]]:
+    """Muestra un spinner y actualiza la barra con avances medibles."""
+    consola = Console(stderr=False)
+    interactiva = consola.is_terminal
+    if not interactiva:
+        typer.echo(mensaje)
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TaskProgressColumn(),
+        TimeElapsedColumn(),
+        console=consola,
+        transient=True,
+        disable=not interactiva,
+    ) as progreso:
+        tarea = progreso.add_task(f"[cyan]{mensaje}[/cyan]", total=None)
+        ultima_etapa = mensaje
+
+        def actualizar(
+            etapa: str, completados: int, total: int | None
+        ) -> None:
+            nonlocal ultima_etapa
+            if not interactiva and etapa != ultima_etapa:
+                typer.echo(etapa)
+                ultima_etapa = etapa
+            descripcion = (
+                f"{etapa} ({completados} encontrados)"
+                if total is None and etapa == "Buscando archivos..."
+                else etapa
+            )
+            progreso.update(
+                tarea,
+                description=f"[cyan]{descripcion}[/cyan]",
+                total=total if total else None,
+                completed=completados,
+            )
+
+        yield actualizar
 
 
 def _resolver_salida_plan(salida: Path, origen: Path) -> Path:
@@ -168,9 +224,14 @@ def scan(
     """
     logger = obtener_logger()
     logger.info(f"Iniciando escaneo en: {origen}")
-    typer.echo(f"🔍 Iniciando escaneo en: {origen}\n")
+    typer.echo(
+        f"🔍 Iniciando escaneo en: {origen}\n"
+        "Se recorrerán las subcarpetas y se analizarán los archivos "
+        "multimedia."
+    )
 
-    resultado = analizar_directorio(origen)
+    with _mostrar_progreso("Escaneando archivos...") as progreso:
+        resultado = analizar_directorio(origen, progreso=progreso)
     resumen = resultado.obtener_resumen()
 
     typer.secho("📊 Resumen del escaneo:", bold=True)
@@ -278,11 +339,17 @@ def plan(
     logger.info(f"Generando plan desde {origen} hacia {destino}")
     typer.echo(
         f"📋 Generando plan para organizar desde {origen} hacia {destino}\n"
+        "No se modificarán archivos; primero se analizará el origen y "
+        "luego se calcularán los destinos."
     )
 
     try:
-        resultado = analizar_directorio(origen)
-        plan_org = generar_plan(resultado, origen, destino)
+        with _mostrar_progreso("Escaneando archivos...") as progreso:
+            resultado = analizar_directorio(origen, progreso=progreso)
+        with _mostrar_progreso(
+            "Calculando destinos y resolviendo posibles colisiones..."
+        ):
+            plan_org = generar_plan(resultado, origen, destino)
     except ValueError as e:
         logger.error(f"Error al generar el plan: {e}")
         typer.secho(f"❌ Error: {e}", fg=typer.colors.RED, err=True)
@@ -429,7 +496,8 @@ def run(
     archivo_plan: Path = _obtener_ruta_plan_seleccionado(plan_path)
 
     try:
-        plan_org = cargar_plan_json(archivo_plan)
+        with _mostrar_progreso("Cargando y leyendo el plan seleccionado..."):
+            plan_org = cargar_plan_json(archivo_plan)
     except (FileNotFoundError, ValueError) as e:
         logger.error(f"Error al cargar el plan desde {archivo_plan}: {e}")
         typer.secho(
@@ -461,10 +529,15 @@ def run(
         return
 
     try:
-        validar_rutas(plan_org.directorio_origen, plan_org.directorio_destino)
-        validar_plan_ejecucion(plan_org)
-        ruta_auditoria = _obtener_ruta_auditoria(archivo_plan)
-        validar_ruta_exportacion(ruta_auditoria)
+        with _mostrar_progreso(
+            "Validando rutas, archivos de origen y destinos..."
+        ):
+            validar_rutas(
+                plan_org.directorio_origen, plan_org.directorio_destino
+            )
+            validar_plan_ejecucion(plan_org)
+            ruta_auditoria = _obtener_ruta_auditoria(archivo_plan)
+            validar_ruta_exportacion(ruta_auditoria)
     except (OSError, ValueError) as e:
         logger.error(f"No se puede preparar la ejecución del plan: {e}")
         typer.secho(
@@ -490,15 +563,21 @@ def run(
         typer.echo("Operación cancelada por el usuario.")
         raise typer.Exit(code=0)
 
-    typer.echo("\n🚀 Ejecutando plan de organización...")
+    typer.echo(
+        "\n🚀 Ejecutando plan de organización: se moverán los archivos y "
+        "se verificará cada traslado."
+    )
     logger.info(f"Iniciando ejecución real del plan: {archivo_plan.name}")
 
-    resultado = ejecutar_plan(plan_org)
-
-    registrar_resultado_detallado_en_log(resultado)
+    with _mostrar_progreso(
+        "Moviendo archivos y verificando cada traslado..."
+    ) as progreso:
+        resultado = ejecutar_plan(plan_org, progreso=progreso)
+        registrar_resultado_detallado_en_log(resultado)
 
     try:
-        exportar_resultado_ejecucion_json(resultado, ruta_auditoria)
+        with _mostrar_progreso("Guardando el reporte de auditoría..."):
+            exportar_resultado_ejecucion_json(resultado, ruta_auditoria)
     except OSError as e:
         logger.error(
             "La ejecución terminó, pero no se pudo guardar la auditoría "

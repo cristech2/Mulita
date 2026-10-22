@@ -1,6 +1,7 @@
 """Ejecución segura y trazable del plan de organización de archivos."""
 
 import shutil
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -252,7 +253,10 @@ def _ejecutar_operacion_individual(
         ) from err
 
 
-def ejecutar_plan(plan: PlanOrganizacion) -> ResultadoEjecucion:
+def ejecutar_plan(
+    plan: PlanOrganizacion,
+    progreso: Callable[[str, int, int | None], None] | None = None,
+) -> ResultadoEjecucion:
     """Ejecuta de forma segura las operaciones autorizadas dentro del plan.
 
     Procesa cada operación de forma independiente con verificación y rollback,
@@ -268,8 +272,12 @@ def ejecutar_plan(plan: PlanOrganizacion) -> ResultadoEjecucion:
     fallidos = 0
     lista_fallos: list[FalloOperacion] = []
     todos_los_registros: list[RegistroOperacionArchivo] = []
+    total_operaciones = len(plan.operaciones)
 
-    for operacion in plan.operaciones:
+    if progreso is not None:
+        progreso("Procesando operaciones...", 0, total_operaciones)
+
+    for indice, operacion in enumerate(plan.operaciones, start=1):
         ahora = datetime.now()
 
         if operacion.accion == AccionPlan.OMITIR:
@@ -291,6 +299,10 @@ def ejecutar_plan(plan: PlanOrganizacion) -> ResultadoEjecucion:
                         timestamp=ahora,
                         es_sidecar=True,
                     )
+                )
+            if progreso is not None:
+                progreso(
+                    "Procesando operaciones...", indice, total_operaciones
                 )
             continue
 
@@ -325,6 +337,9 @@ def ejecutar_plan(plan: PlanOrganizacion) -> ResultadoEjecucion:
                     requiere_recuperacion_manual=es_manual,
                 )
             )
+
+        if progreso is not None:
+            progreso("Procesando operaciones...", indice, total_operaciones)
 
     return ResultadoEjecucion(
         procesados_exitosamente=exitosos,

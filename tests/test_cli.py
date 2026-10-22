@@ -48,6 +48,7 @@ def test_cli_scan_ejecucion_exitosa(tmp_path: Path) -> None:
     # Assert
     assert result.exit_code == 0
     assert "Iniciando escaneo" in result.stdout
+    assert "Escaneando archivos" in result.stdout
     assert "Resumen del escaneo" in result.stdout
     assert "Imágenes:         1" in result.stdout
     assert "Proyectos:        1" in result.stdout
@@ -86,6 +87,10 @@ def test_cli_plan_ejecucion_exitosa(tmp_path: Path) -> None:
     # Assert
     assert result.exit_code == 0
     assert "Generando plan para organizar" in result.stdout
+    assert "No se modificarán archivos" in result.stdout
+    assert "Calculando destinos y resolviendo posibles colisiones" in (
+        result.stdout
+    )
     assert "Resumen del plan de organización" in result.stdout
     assert "Archivos a mover:         1" in result.stdout
 
@@ -759,6 +764,9 @@ def test_cli_run_ejecucion_real_exitosa(
     # Assert
     assert result.exit_code == 0
     assert "Ejecutando plan de organización" in result.stdout
+    assert "Validando rutas, archivos de origen y destinos" in result.stdout
+    assert "Moviendo archivos y verificando cada traslado" in result.stdout
+    assert "Guardando el reporte de auditoría" in result.stdout
     assert "Procesados con éxito: 1" in result.stdout
     assert not foto.exists()
     assert destino_foto.exists()

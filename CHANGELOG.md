@@ -4,6 +4,8 @@
 
 - **scanner**: reconocer y organizar proyectos de edición, y validar que cada
   extensión corresponda a una sola categoría
+- **cli**: mostrar etapas claras y progreso medible durante escaneos,
+  extracción de metadatos y ejecución de operaciones
 
 ### Fix
 

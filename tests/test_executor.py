@@ -247,7 +247,13 @@ def test_ejecutar_plan_completado_con_exito_y_registros_detallados(
     )
 
     # Act
-    resultado = ejecutar_plan(plan)
+    avances: list[tuple[str, int, int | None]] = []
+    resultado = ejecutar_plan(
+        plan,
+        progreso=lambda etapa, completados, total: avances.append(
+            (etapa, completados, total)
+        ),
+    )
 
     # Assert
     assert isinstance(resultado, ResultadoEjecucion)
@@ -255,6 +261,11 @@ def test_ejecutar_plan_completado_con_exito_y_registros_detallados(
     assert resultado.fallidos == 0
     assert len(resultado.errores) == 0
     assert len(resultado.registros_detallados) == 2
+    assert [avance[1:] for avance in avances] == [
+        (0, 2),
+        (1, 2),
+        (2, 2),
+    ]
     assert all(
         r.estado == EstadoEjecucionOperacion.EXITOSO
         for r in resultado.registros_detallados

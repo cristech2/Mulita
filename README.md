@@ -23,7 +23,7 @@ Mulita está en desarrollo. La versión 0.3.0 incorpora la persistencia de plane
 
 - Python 3.11+
 - ExifTool instalado y disponible en PATH
-- pip o uv para instalar el paquete
+- pip o uv para instalar el paquete y sus dependencias Python (Typer y Rich)
 
 ## Instalación
 
@@ -38,6 +38,19 @@ uv sync --group dev
 ```
 
 ## Uso
+
+Durante las tareas que pueden tardar, la CLI explica qué está haciendo. En
+terminales interactivos muestra una barra de Rich con el avance medible y un
+spinner mientras espera operaciones cuyo progreso interno no está disponible.
+Al redirigir la salida, muestra los mensajes de etapa sin animación.
+
+En `scan` y `plan`, el conteo aumenta mientras se descubren archivos; como el
+total no se conoce hasta terminar el recorrido, esa etapa no muestra un
+porcentaje. Después, la lectura de metadatos se informa por lotes de hasta 100
+archivos con ExifTool y el análisis de fechas/clasificación avanza archivo por
+archivo. En `run --ejecutar`, el avance corresponde a operaciones completadas,
+incluidas las fallidas u omitidas; no representa el progreso interno de mover
+un archivo individual.
 
 ### 1) Escaneo de un directorio
 

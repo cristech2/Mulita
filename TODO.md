@@ -16,6 +16,10 @@ definidos en [mulita_mvp_alcance.md](mulita_mvp_alcance.md).
   lo esperado en Windows. El plan adjunto contiene 1.893 operaciones
   principales y 171 pares de sidecars; el árbol antes/después muestra la
   organización resultante.
+- **Progreso de la CLI:** muestra el conteo de archivos durante el recorrido,
+  el avance de extracción de metadatos por lotes y las operaciones completadas
+  durante `run`; en terminales interactivas usa Rich y al redirigir la salida
+  conserva mensajes de etapa sin animación.
 - **Próximo objetivo:** repetir la validación en Linux y cerrar las brechas de
   rendimiento, dependencias y errores comprensibles.
 
@@ -34,7 +38,7 @@ definidos en [mulita_mvp_alcance.md](mulita_mvp_alcance.md).
 | **RF-09** | Ejecución               | `[x] Cumplido` | `executor.py` verifica cada traslado, intenta revertir los movimientos de una operación fallida y señala los casos que requieren recuperación manual. El lote continúa ante fallos.                                                      |
 | **RF-10** | Registros y resumen     | `[x] Cumplido` | La CLI presenta resúmenes, registra por archivo el estado de cada operación y exporta los resultados detallados a JSON de auditoría sin reemplazar reportes previos.                                                                 |
 | **RF-11** | Validación de rutas     | `[x] Cumplido` | `planner.py` valida origen/destino; la CLI valida la salida antes del escaneo y `executor.py` prevalida el lote antes de iniciar movimientos.                                                                                          |
-| **RF-12** | CLI                     | `[x] Cumplido` | `scan`, `plan` y `run` se probaron en Windows según lo esperado. `run` recibe la ruta del JSON como argumento posicional; el alcance describe la opción `--plan`, por lo que esa diferencia de interfaz debe quedar documentada.          |
+| **RF-12** | CLI                     | `[x] Cumplido` | `scan`, `plan` y `run` usan Typer. `run` recibe la ruta del JSON como argumento posicional; muestra avance por operaciones completadas y los comandos de análisis informan etapas y progreso de lectura de metadatos con Rich. |
 
 ## Requisitos no funcionales
 
@@ -46,9 +50,9 @@ definidos en [mulita_mvp_alcance.md](mulita_mvp_alcance.md).
 | **RNF-04** | Resiliencia           | `[x] Cumplido` | Los fallos de ejecución se registran por operación para continuar procesando el lote.                                                                                                                                     |
 | **RNF-05** | Rendimiento           | `[/] Parcial`  | Se validó el flujo con una copia de una biblioteca de 20 GB en Windows y la extracción usa procesamiento por lotes. No hay caché de resultados de escaneo; falta medir/documentar tiempos y validar en Linux.             |
 | **RNF-06** | Mantenibilidad        | `[x] Cumplido` | Las responsabilidades se distribuyen entre módulos de escaneo, metadatos, fechas, asociaciones, planificación, persistencia, ejecución y CLI.                                                                             |
-| **RNF-07** | Observabilidad        | `[x] Cumplido` | Hay registros configurables con marca de tiempo, estados detallados por archivo en el log y reportes JSON de auditoría.                                                                                                  |
-| **RNF-08** | Pruebas               | `[/] Parcial`  | La suite automatizada (93 pruebas) pasó en Windows y se hizo una prueba manual de extremo a extremo con una copia de 20 GB. Falta ejecutar la suite y el flujo manual en Linux.                                            |
-| **RNF-09** | Dependencias mínimas  | `[/] Parcial`  | Typer es la dependencia Python de ejecución y se detecta ExifTool, pero el aviso cuando falta no explica cómo instalarlo.                                                                                                 |
+| **RNF-07** | Observabilidad        | `[x] Cumplido` | Hay registros configurables con marca de tiempo, estados detallados por archivo en el log y reportes JSON de auditoría; la CLI comunica etapas y progreso medible durante las operaciones largas.                         |
+| **RNF-08** | Pruebas               | `[/] Parcial`  | La suite automatizada (140 pruebas) pasó en Windows y se hizo una prueba manual de extremo a extremo con una copia de 20 GB. Falta ejecutar la suite y el flujo manual en Linux.                                           |
+| **RNF-09** | Dependencias mínimas  | `[/] Parcial`  | Typer y Rich son dependencias Python de ejecución; ExifTool se detecta en el sistema, pero el aviso cuando falta no explica cómo instalarlo.                                                                              |
 | **RNF-10** | Errores comprensibles | `[/] Parcial`  | La CLI informa errores de carga y movimiento; el aviso por falta de ExifTool no es accionable y debe explicar cómo resolverlo.                                                                                            |
 
 ## Próximos pasos: Hito 6, validación del MVP
@@ -57,7 +61,7 @@ definidos en [mulita_mvp_alcance.md](mulita_mvp_alcance.md).
   biblioteca real de 20 GB; comparar la estructura antes/después.
 - [x] Generar el plan JSON y completar la ejecución real en esa prueba:
   1.893 operaciones principales y 171 pares de sidecars.
-- [x] Ejecutar la suite automatizada en Windows: 93 pruebas aprobadas.
+- [x] Ejecutar la suite automatizada en Windows: 140 pruebas aprobadas.
 - [ ] Ejecutar la suite completa de pruebas y repetir el flujo de extremo a
   extremo en Linux.
 - [x] Verificar cada traslado antes de declararlo exitoso y probar fallos

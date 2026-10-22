@@ -131,6 +131,29 @@ def test_escanear_directorio_omite_ocultos(tmp_path: Path) -> None:
     assert foto_en_dir_oculto.resolve() not in rutas_encontradas
 
 
+def test_escanear_directorio_informa_archivos_encontrados(
+    tmp_path: Path,
+) -> None:
+    """Informa el conteo acumulado sin inventar un total durante el recorrido."""
+    (tmp_path / "foto.jpg").touch()
+    (tmp_path / "video.mp4").touch()
+    avances: list[tuple[str, int, int | None]] = []
+
+    archivos = escanear_directorio(
+        tmp_path,
+        progreso=lambda etapa, completados, total: avances.append(
+            (etapa, completados, total)
+        ),
+    )
+
+    assert len(archivos) == 2
+    assert [avance[1:] for avance in avances] == [
+        (0, None),
+        (1, None),
+        (2, None),
+    ]
+
+
 def test_escanear_directorio_excluye_destino_anidado(tmp_path: Path) -> None:
     """Verifica que el escaneo excluya el destino anidado en el origen.
 
