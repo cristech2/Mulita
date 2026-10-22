@@ -58,6 +58,28 @@ O con `uv`:
 uv sync --group dev
 ```
 
+ExifTool es opcional. Mulita comprueba si está disponible antes de iniciar el
+escaneo; si falta, lo indica y sigue usando la fecha de modificación del
+archivo, que puede no coincidir con la fecha en que se tomó la foto. Para
+instalarlo:
+
+```bash
+# Windows
+winget install OliverBetz.ExifTool
+
+# macOS
+brew install exiftool
+
+# Debian/Ubuntu
+sudo apt install libimage-exiftool-perl
+```
+
+Después, abre una terminal nueva y verifica que esté disponible en el `PATH`:
+
+```bash
+exiftool -ver
+```
+
 Comprueba que la CLI esté disponible:
 
 ```bash

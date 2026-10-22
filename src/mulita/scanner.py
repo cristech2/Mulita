@@ -6,7 +6,11 @@ from pathlib import Path
 
 from mulita.associations import asociar_sidecars
 from mulita.dates import resolver_fecha_archivo
-from mulita.metadata import extraer_metadatos
+from mulita.metadata import (
+    MENSAJE_EXIFTOOL_AUSENTE,
+    extraer_metadatos,
+    verificar_exiftool,
+)
 from mulita.metadata_cache import CacheMetadatos
 from mulita.models import (
     TIPO_ARCHIVO_POR_EXTENSION,
@@ -83,20 +87,29 @@ def analizar_directorio(
     progreso: Callable[[str, int, int | None], None] | None = None,
     usar_cache: bool = True,
     ruta_cache: Path | None = None,
+    exiftool_disponible: bool | None = None,
 ) -> ResultadoEscaneo:
     """Ejecuta el procesamiento completo de la fase de escaneo.
 
     Args:
         origen (Path): Directorio raíz a analizar.
         destino_ignorar (Path | None): Directorio a ignorar durante el escaneo.
+        progreso (Callable | None): Función para informar el avance.
         usar_cache (bool): Indica si se debe reutilizar el caché persistente.
         ruta_cache (Path | None): Ruta de la base SQLite, principalmente útil
             para pruebas.
+        exiftool_disponible (bool | None): Disponibilidad comprobada de
+            ExifTool; ``None`` la comprueba antes de recorrer el origen.
 
     Returns:
         ResultadoEscaneo: Resultado consolidado del análisis.
     """
     logger = obtener_logger()
+    if exiftool_disponible is None:
+        exiftool_disponible = verificar_exiftool()
+        if not exiftool_disponible:
+            logger.error("%s\n", MENSAJE_EXIFTOOL_AUSENTE)
+
     archivos = escanear_directorio(
         origen,
         destino_ignorar,
@@ -129,7 +142,11 @@ def analizar_directorio(
         ruta for ruta in multimedia_rutas if ruta not in metadatos_map
     ]
     metadatos_nuevos = (
-        extraer_metadatos(rutas_pendientes, progreso=progreso)
+        extraer_metadatos(
+            rutas_pendientes,
+            progreso=progreso,
+            exiftool_disponible=exiftool_disponible,
+        )
         if rutas_pendientes
         else {}
     )

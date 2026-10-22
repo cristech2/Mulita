@@ -20,6 +20,7 @@ from rich.progress import (
 )
 
 from mulita.executor import ejecutar_plan, validar_plan_ejecucion
+from mulita.metadata import MENSAJE_EXIFTOOL_AUSENTE, verificar_exiftool
 from mulita.models import AccionPlan, TipoArchivo
 from mulita.plan_storage import (
     buscar_archivos_plan,
@@ -228,6 +229,10 @@ def scan(
         origen (Path): Ruta de la carpeta fuente a analizar.
     """
     logger = obtener_logger()
+    exiftool_disponible = verificar_exiftool()
+    if not exiftool_disponible:
+        logger.error("%s\n", MENSAJE_EXIFTOOL_AUSENTE)
+
     logger.info(f"Iniciando escaneo en: {origen}")
     typer.echo(
         f"🔍 Iniciando escaneo en: {origen}\n"
@@ -237,7 +242,10 @@ def scan(
 
     with _mostrar_progreso("Escaneando archivos...") as progreso:
         resultado = analizar_directorio(
-            origen, progreso=progreso, usar_cache=not sin_cache
+            origen,
+            progreso=progreso,
+            usar_cache=not sin_cache,
+            exiftool_disponible=exiftool_disponible,
         )
     resumen = resultado.obtener_resumen()
 
@@ -348,6 +356,10 @@ def plan(
         )
         raise typer.Exit(code=1) from e
 
+    exiftool_disponible = verificar_exiftool()
+    if not exiftool_disponible:
+        logger.error("%s\n", MENSAJE_EXIFTOOL_AUSENTE)
+
     logger.info(f"Generando plan desde {origen} hacia {destino}")
     typer.echo(
         f"📋 Generando plan para organizar desde {origen} hacia {destino}\n"
@@ -358,7 +370,10 @@ def plan(
     try:
         with _mostrar_progreso("Escaneando archivos...") as progreso:
             resultado = analizar_directorio(
-                origen, progreso=progreso, usar_cache=not sin_cache
+                origen,
+                progreso=progreso,
+                usar_cache=not sin_cache,
+                exiftool_disponible=exiftool_disponible,
             )
         with _mostrar_progreso(
             "Calculando destinos y resolviendo posibles colisiones..."

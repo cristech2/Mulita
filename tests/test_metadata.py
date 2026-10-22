@@ -1,5 +1,6 @@
 """Pruebas para extracción y validación de metadatos."""
 
+import logging
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -26,8 +27,10 @@ def test_verificar_exiftool_ausente() -> None:
     assert resultado is False
 
 
-def test_extraer_metadatos_sin_exiftool(tmp_path: Path) -> None:
-    """Verifica que no haya metadatos si ExifTool no está disponible.
+def test_extraer_metadatos_sin_exiftool(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Registra instrucciones y continúa sin metadatos si falta ExifTool.
 
     Args:
         tmp_path (Path): Directorio temporal de la prueba.
@@ -37,11 +40,21 @@ def test_extraer_metadatos_sin_exiftool(tmp_path: Path) -> None:
     archivo.write_text("dummy")
 
     # Act
-    with patch("mulita.metadata.verificar_exiftool", return_value=False):
+    with (
+        patch("mulita.metadata.verificar_exiftool", return_value=False),
+        caplog.at_level(logging.ERROR, logger="mulita"),
+    ):
         resultado = extraer_metadatos([archivo])
 
     # Assert
     assert resultado == {archivo: {}}
+    assert "ExifTool no está disponible" in caplog.text
+    assert "Instálalo según tu sistema operativo:" in caplog.text
+    assert "winget install OliverBetz.ExifTool" in caplog.text
+    assert "brew install exiftool" in caplog.text
+    assert "sudo apt install libimage-exiftool-perl" in caplog.text
+    assert "exiftool -ver" in caplog.text
+    assert "fecha de modificación del archivo" in caplog.text
 
 
 def test_extraer_metadatos_exito_mock_subprocess(tmp_path: Path) -> None:

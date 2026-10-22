@@ -52,8 +52,8 @@ definidos en [mulita_mvp_alcance.md](mulita_mvp_alcance.md).
 | **RNF-06** | Mantenibilidad        | `[x] Cumplido` | Las responsabilidades se distribuyen entre módulos de escaneo, metadatos, fechas, asociaciones, planificación, persistencia, ejecución y CLI.                                                                             |
 | **RNF-07** | Observabilidad        | `[x] Cumplido` | Hay registros configurables con marca de tiempo, estados detallados por archivo en el log y reportes JSON de auditoría; la CLI comunica etapas y progreso medible durante las operaciones largas.                         |
 | **RNF-08** | Pruebas               | `[/] Parcial`  | La suite automatizada (140 pruebas) pasó en Windows y se hizo una prueba manual de extremo a extremo con una copia de 20 GB. Falta ejecutar la suite y el flujo manual en Linux.                                           |
-| **RNF-09** | Dependencias mínimas  | `[/] Parcial`  | Typer y Rich son dependencias Python de ejecución; ExifTool se detecta en el sistema, pero el aviso cuando falta no explica cómo instalarlo.                                                                              |
-| **RNF-10** | Errores comprensibles | `[/] Parcial`  | La CLI informa errores de carga y movimiento; el aviso por falta de ExifTool no es accionable y debe explicar cómo resolverlo.                                                                                            |
+| **RNF-09** | Dependencias mínimas  | `[x] Cumplido` | Typer y Rich son dependencias Python de ejecución; ExifTool se detecta en el sistema y el aviso cuando falta incluye instrucciones de instalación.                                                                       |
+| **RNF-10** | Errores comprensibles | `[x] Cumplido` | La CLI informa errores de carga y movimiento; el error por falta de ExifTool explica cómo instalarlo y que se continuará con la fecha de modificación.                                                                    |
 
 ## Próximos pasos: Hito 6, validación del MVP
 
@@ -76,7 +76,8 @@ definidos en [mulita_mvp_alcance.md](mulita_mvp_alcance.md).
   sobrescrituras y permitir otra ruta o cancelar.
 - [x] Prevalidar el lote y preparar una ruta de auditoría antes de confirmar
   movimientos; preservar auditorías existentes y guardar JSON atómicamente.
-- [ ] Hacer que el aviso de ExifTool ausente indique cómo instalarlo.
+- [x] Hacer que el error de ExifTool ausente indique cómo instalarlo y
+  verificarlo.
 - [x] Implementar el caché persistente de metadatos para `scan` y `plan`,
   validando las entradas por tamaño y fecha de modificación; permitir omitirlo
   con `--sin-cache`.

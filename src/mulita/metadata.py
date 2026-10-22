@@ -10,6 +10,17 @@ from pathlib import Path
 from mulita.reporting import obtener_logger
 
 TAMANO_LOTE_METADATOS = 100
+MENSAJE_EXIFTOOL_AUSENTE = (
+    "ExifTool no está disponible; Mulita no podrá leer las fechas EXIF.\n"
+    "\n"
+    "Instálalo según tu sistema operativo:\n"
+    "  Windows:     winget install OliverBetz.ExifTool\n"
+    "  macOS:       brew install exiftool\n"
+    "  Debian/Ubuntu: sudo apt install libimage-exiftool-perl\n"
+    "\n"
+    "Luego, abre una terminal nueva y verifica con: exiftool -ver\n"
+    "El escaneo continuará usando la fecha de modificación del archivo."
+)
 
 
 def verificar_exiftool() -> bool:
@@ -24,11 +35,15 @@ def verificar_exiftool() -> bool:
 def extraer_metadatos(
     rutas: list[Path],
     progreso: Callable[[str, int, int | None], None] | None = None,
+    exiftool_disponible: bool | None = None,
 ) -> dict[Path, dict[str, str]]:
     """Extrae metadatos de fecha para las rutas indicadas usando ExifTool.
 
     Args:
         rutas (list[Path]): Lista de rutas a consultar.
+        progreso (Callable | None): Función para informar el avance.
+        exiftool_disponible (bool | None): Disponibilidad comprobada de
+            ExifTool; ``None`` comprueba la herramienta durante esta llamada.
 
     Returns:
         dict[Path, dict[str, str]]: Mapa de ruta a metadatos encontrados.
@@ -38,11 +53,14 @@ def extraer_metadatos(
     if not rutas:
         return {}
 
-    if not verificar_exiftool():
-        logger.warning(
-            "ExifTool no está instalado o no se encuentra en el PATH. "
-            "Se omitirá la extracción de metadatos EXIF."
-        )
+    disponible = (
+        verificar_exiftool()
+        if exiftool_disponible is None
+        else exiftool_disponible
+    )
+    if not disponible:
+        if exiftool_disponible is None:
+            logger.error("%s\n", MENSAJE_EXIFTOOL_AUSENTE)
         if progreso is not None:
             progreso(
                 "ExifTool no disponible; se usarán fechas de archivo.",

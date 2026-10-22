@@ -67,6 +67,55 @@ def test_cli_scan_ejecucion_exitosa(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("comando", ["scan", "plan"])
+def test_cli_avisa_si_falta_exiftool_antes_de_escanear(
+    comando: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Comprueba ExifTool e informa antes de comenzar el escaneo."""
+    origen = tmp_path / "origen"
+    origen.mkdir()
+    argumentos = [comando, str(origen)]
+    if comando == "plan":
+        destino = tmp_path / "destino"
+        destino.mkdir()
+        argumentos.extend(["--destino", str(destino)])
+
+    eventos: list[str] = []
+
+    def exiftool_ausente() -> bool:
+        eventos.append("comprobar")
+        return False
+
+    def detener_escaneo(*args: object, **kwargs: object) -> None:
+        eventos.append("escanear")
+        assert kwargs["exiftool_disponible"] is False
+        raise ValueError("escaneo detenido por la prueba")
+
+    monkeypatch.setattr("mulita.cli.verificar_exiftool", exiftool_ausente)
+    monkeypatch.setattr("mulita.cli.analizar_directorio", detener_escaneo)
+
+    resultado = runner.invoke(app, argumentos)
+
+    texto_inicio = (
+        "Iniciando escaneo" if comando == "scan" else "Generando plan para"
+    )
+    assert eventos == ["comprobar", "escanear"]
+    assert "ExifTool no está disponible" in resultado.output
+    assert resultado.output.count("ExifTool no está disponible") == 1
+    assert "Instálalo según tu sistema operativo:\n" in resultado.output
+    assert "  Windows:     winget install OliverBetz.ExifTool\n" in (
+        resultado.output
+    )
+    assert "  macOS:       brew install exiftool\n" in resultado.output
+    assert "Debian/Ubuntu: sudo apt install libimage-exiftool-perl\n" in (
+        resultado.output
+    )
+    assert "fecha de modificación del archivo.\n\n" in resultado.output
+    assert resultado.output.index("ExifTool no está disponible") < (
+        resultado.output.index(texto_inicio)
+    )
+
+
+@pytest.mark.parametrize("comando", ["scan", "plan"])
 def test_cli_sin_cache_fuerza_extraer_metadatos(
     comando: str, tmp_path: Path
 ) -> None:
