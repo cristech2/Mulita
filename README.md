@@ -1,240 +1,250 @@
-# Mulita
+## Mulita
 
-Mulita es una herramienta CLI para organizar fotos, videos y proyectos de
-edición de forma segura y trazable a partir de metadatos y reglas explícitas.
-Está pensada para recorrer directorios de origen, reconocer archivos de medios
-y proyectos, y generar un plan de organización sin sobrescribir datos ni
-decidir sin evidencia.
+Mulita es una herramienta de línea de comandos para analizar y organizar
+fotografías, videos y proyectos de edición según sus fechas y metadatos.
+Genera un plan JSON que puede revisarse antes de usarlo; por defecto, su
+ejecución es una simulación y no modifica archivos.
 
-El proyecto sigue una lógica de MVP orientada a medios fotográficos y audiovisuales, con énfasis en:
+La versión actual es **0.3.0** y el proyecto sigue en desarrollo.
 
-- escaneo recursivo de carpetas;
-- clasificación de imágenes, RAW, videos, proyectos de edición y auxiliares;
-- lectura de metadatos con ExifTool;
-- determinación de fecha de origen para organizar;
-- asociación de sidecars como XMP;
-- generación de un plan previo a la ejecución.
+## Contenido
 
-## Estado actual
+- [Capacidades](#capacidades)
+- [Requisitos](#requisitos)
+- [Instalación](#instalación)
+- [Inicio rápido](#inicio-rápido)
+- [Opciones de la CLI](#opciones-de-la-cli)
+- [Caché y metadatos](#caché-y-metadatos)
+- [Ejecución segura](#ejecución-segura)
+- [Estructura del proyecto](#estructura-del-proyecto)
+- [Desarrollo y pruebas](#desarrollo-y-pruebas)
+- [Documentación relacionada](#documentación-relacionada)
 
-Mulita está en desarrollo. La versión 0.3.0 incorpora la persistencia de planes en JSON y su ejecución segura. El comando `run` simula los cambios por defecto; para mover archivos reales requiere la opción `--ejecutar` y confirmación explícita.
+## Capacidades
+
+- Recorre directorios de forma recursiva y clasifica imágenes, archivos RAW,
+  videos, proyectos de edición, auxiliares y extensiones desconocidas.
+- Extrae fechas de metadatos con ExifTool y aplica prioridades distintas para
+  fotografías y videos. Si no encuentra una fecha utilizable, usa la fecha de
+  modificación del archivo e identifica ese respaldo en el plan.
+- Asocia sidecars compatibles (XMP, RRDATA y RREXIF) con sus archivos
+  principales. Los archivos desconocidos y sidecars huérfanos o ambiguos se
+  informan, pero no se incluyen como operaciones de movimiento.
+- Propone destinos con la estructura
+  `AÑO/MES/DÍA/CATEGORÍA` y evita colisiones asignando sufijos numéricos.
+- Exporta y carga planes JSON; puede simularlos o ejecutarlos con validaciones,
+  confirmación y registro de resultados.
+- Mantiene en caché los metadatos para reducir extracciones repetidas.
 
 ## Requisitos
 
-- Python 3.11+
-- ExifTool instalado y disponible en PATH
-- pip o uv para instalar el paquete y sus dependencias Python (Typer y Rich)
+- Python 3.11 o posterior.
+- ExifTool instalado y disponible en `PATH` para leer metadatos EXIF y de
+  video. Es opcional: si no está disponible, Mulita utiliza la fecha de
+  modificación del archivo como respaldo.
 
 ## Instalación
+
+Desde la raíz del repositorio, instala el paquete y las herramientas de
+desarrollo con `pip`:
 
 ```bash
 python -m pip install -e ".[dev]"
 ```
 
-O con uv:
+O con `uv`:
 
 ```bash
 uv sync --group dev
 ```
 
-## Uso
-
-Durante las tareas que pueden tardar, la CLI explica qué está haciendo. En
-terminales interactivos muestra una barra de Rich con el avance medible y un
-spinner mientras espera operaciones cuyo progreso interno no está disponible.
-Al redirigir la salida, muestra los mensajes de etapa sin animación.
-
-En `scan` y `plan`, el conteo aumenta mientras se descubren archivos; como el
-total no se conoce hasta terminar el recorrido, esa etapa no muestra un
-porcentaje. Los metadatos se conservan en un caché SQLite del perfil del
-usuario y se reutilizan mientras coincidan el tamaño y la fecha de
-modificación del archivo. Los archivos nuevos o modificados se procesan por
-lotes de hasta 100 con ExifTool. `plan` siempre vuelve a calcular los destinos
-y las colisiones. Usa `--sin-cache` en `scan` o `plan` para forzar una nueva
-extracción. En `run --ejecutar`, el avance corresponde a operaciones
-completadas, incluidas las fallidas u omitidas; no representa el progreso
-interno de mover un archivo individual.
-
-### 1) Escaneo de un directorio
+Comprueba que la CLI esté disponible:
 
 ```bash
-mulita scan "C:/ruta/origen"
+mulita --help
 ```
 
-Para ignorar el caché persistente y volver a extraer los metadatos:
+También puedes invocarla como módulo:
 
 ```bash
-mulita scan "C:/ruta/origen" --sin-cache
+python -m mulita --help
 ```
 
-Este comando analiza el contenido del directorio y muestra un resumen de:
+## Inicio rápido
 
-- imágenes detectadas;
-- RAWs;
-- videos;
-- sidecars auxiliares;
-- grupos principales de medios;
-- archivos desconocidos o ambiguos.
-
-### 2) Generación de plan
+Con Mulita instalada, consulta la ayuda:
 
 ```bash
-mulita plan "C:/ruta/origen" --destino "C:/ruta/destino" --salida "C:/ruta/plan.json"
+mulita --help
 ```
 
-Genera un plan de organización sin mover archivos. La opción `--salida` guarda
-el plan en JSON para revisarlo o ejecutarlo después.
-Si el archivo de salida ya existe, Mulita pregunta antes de reemplazarlo.
-Si se rechaza la sobrescritura, se puede indicar otra ruta o cancelar; la
-decisión ocurre antes del escaneo. No se permite guardar el plan dentro del
-directorio de origen. La opción `--sin-cache` fuerza la extracción de
-metadatos; el cálculo del plan siempre se realiza de nuevo.
+El flujo recomendado es analizar el origen, crear un plan, simularlo y solo
+después confirmar la ejecución real:
 
-### 3) Simulación del plan
+1. [Analiza el directorio de origen](#1-analizar-un-origen).
+2. [Genera y guarda un plan JSON](#2-generar-y-guardar-un-plan).
+3. [Revisa la simulación](#3-revisar-la-simulación).
+4. [Ejecuta el plan tras revisarlo](#4-confirmar-la-ejecución-real).
+
+Los ejemplos siguientes usan rutas de muestra. Sustitúyelas por rutas
+adecuadas a tu sistema y prueba primero con una copia de tus archivos.
+
+### 1. Analizar un origen
 
 ```bash
-mulita run "C:/ruta/plan.json"
+mulita scan "C:/fotos/origen"
 ```
 
-`run` carga el plan indicado y muestra un resumen sin modificar archivos. Si no se indica un archivo, busca planes JSON válidos en el directorio actual y permite seleccionarlos.
-
-### 4) Ejecución real
+El escaneo resume los archivos encontrados, los grupos de medios, los
+sidecars asociados y los elementos que requieren revisión. Para volver a
+extraer metadatos en lugar de reutilizar el caché:
 
 ```bash
-mulita run "C:/ruta/plan.json" --ejecutar
+mulita scan "C:/fotos/origen" --sin-cache
 ```
 
-La ejecución real valida todas las operaciones del plan y prepara una ruta de
-auditoría antes de solicitar confirmación y mover archivos. Si la ruta de
-auditoría ya existe, se elige un nombre alternativo para conservar el reporte
-anterior. Los destinos existentes no se sobrescriben; los errores se informan
-por operación. `--dry-run` es el modo predeterminado.
+### 2. Generar y guardar un plan
 
-## Prueba segura con una copia
+```bash
+mulita plan "C:/fotos/origen" --destino "C:/fotos/organizadas" --salida "C:/fotos/plan.json"
+```
 
-No pruebes la ejecución real sobre tu biblioteca original. Prepara una copia
-de prueba del origen y una carpeta de destino separada, preferentemente vacía.
-Guarda también el archivo JSON del plan fuera de ambas carpetas.
+`plan` no mueve archivos. Calcula nuevamente destinos y colisiones cada vez
+que se ejecuta, aunque reutilice metadatos en caché. No se puede guardar el
+JSON dentro del origen; si el archivo de salida ya existe, se solicita
+confirmación antes de reemplazarlo.
 
-1. Escanea la copia del origen:
+Para generar el plan sin reutilizar metadatos:
 
-   ```bash
-   mulita scan "C:/pruebas/fotos-origen"
-   ```
+```bash
+mulita plan "C:/fotos/origen" --destino "C:/fotos/organizadas" --salida "C:/fotos/plan.json" --sin-cache
+```
 
-2. Genera y guarda un plan hacia el destino de prueba:
+### 3. Revisar la simulación
 
-   ```bash
-   mulita plan "C:/pruebas/fotos-origen" --destino "C:/pruebas/fotos-destino" --salida "C:/pruebas/plan.json"
-   ```
+```bash
+mulita run "C:/fotos/plan.json"
+```
 
-3. Ejecuta primero la simulación, que es el modo predeterminado:
+Este es el modo predeterminado: informa el origen, el destino y la cantidad
+prevista de movimientos, sin cambiar archivos. Si se omite la ruta del plan,
+Mulita busca archivos JSON de plan en el directorio actual y, si encuentra
+varios, permite seleccionar uno.
 
-   ```bash
-   mulita run "C:/pruebas/plan.json" --dry-run
-   ```
+### 4. Confirmar la ejecución real
 
-   Revisa el resumen y el JSON; confirma que las rutas de origen y destino
-   corresponden a las carpetas de prueba antes de continuar.
+```bash
+mulita run "C:/fotos/plan.json" --ejecutar
+```
 
-4. Solo cuando hayas revisado el plan, ejecuta sobre la copia:
+Antes de mover archivos, Mulita valida el plan, las rutas de origen y los
+destinos, prepara una ruta para la auditoría y solicita confirmación. No
+sobrescribe destinos existentes. Verifica cada traslado y, ante fallos,
+intenta revertir los movimientos de esa operación. Al finalizar guarda un
+reporte JSON en `reportes/ejecucion_<plan>.json`; si ese nombre ya existe,
+elige un nombre alternativo para conservar los reportes anteriores.
 
-   ```bash
-   mulita run "C:/pruebas/plan.json" --ejecutar
-   ```
+## Opciones de la CLI
 
-   Lee la confirmación que muestra la CLI y cancela si las rutas no son las
-   esperadas. Conserva intacta la biblioteca original y verifica el resultado
-   de la prueba antes de usar Mulita con otros archivos.
+Consulta `mulita --help`, `mulita scan --help`, `mulita plan --help` o
+`mulita run --help` para obtener la referencia completa de la versión
+instalada.
 
-## Limitaciones conocidas
+| Comando u opción | Descripción |
+| --- | --- |
+| `scan ORIGEN` | Analiza un directorio y presenta un resumen. |
+| `plan ORIGEN --destino DESTINO` | Genera un plan sin modificar archivos. |
+| `plan ... --salida ARCHIVO.json` | Guarda el plan en formato JSON. |
+| `scan` / `plan` `--sin-cache` | Fuerza una nueva extracción de metadatos. |
+| `run [PLAN.json]` | Simula el plan; puede buscar planes en el directorio actual. |
+| `run PLAN.json --ejecutar` | Ejecuta movimientos reales tras validación y confirmación. |
+| `--dev` | Registra detalles en el log y mantiene la consola menos verbosa. |
+| `--debug`, `-v`, `--verbose` | Muestra detalles de depuración en consola y log. |
+| `--log-file RUTA` | Define el archivo base o el directorio para los logs. |
 
-- Un medio y sus sidecars se mueven en pasos separados. Si ocurre un error,
-  Mulita intenta revertir los archivos que ya movió; si la reversión falla,
-  informa que se requiere recuperación manual. El movimiento no es atómico.
-- El plan es una fotografía de las rutas al momento de generarlo. Si cambian
-  los archivos de origen o destino antes de `run`, vuelve a generar y revisar
-  el plan.
-- Si ExifTool no está disponible, Mulita continúa sin esos metadatos y puede
-  usar la fecha de modificación del archivo como respaldo. Revisa el plan
-  cuando las fechas sean importantes.
-- La validación manual con una copia de una biblioteca de 20 GB y la suite de
-  pruebas se realizaron en Windows. El flujo todavía debe validarse en Linux.
-- El caché persistente reutiliza metadatos si tamaño y fecha de modificación
-  no cambiaron; el plan se recalcula en cada ejecución.
+Las opciones globales de logging se indican antes del comando, por ejemplo:
 
-## Funcionalidades principales
+```bash
+mulita --debug scan "C:/fotos/origen"
+mulita --log-file "C:/logs/mulita.log" plan "C:/fotos/origen" --destino "C:/fotos/organizadas"
+```
 
-### Implementado
+## Caché y metadatos
 
-- Escaneo recursivo y clasificación de extensiones configuradas como imagen, RAW, video, proyecto de edición, auxiliar o desconocido; omite rutas ocultas y el módulo permite excluir una ruta de destino cuando se indica.
-- Extracción de fechas disponibles con ExifTool y selección de fecha según prioridad para fotos y videos. Si no hay una fecha utilizable, usa la fecha de modificación del archivo y la marca como respaldo.
-- Asociación de archivos auxiliares (XMP, RRDATA y RREXIF) con medios o
-  proyectos de la misma carpeta. Los sidecars huérfanos o ambiguos y los
-  archivos desconocidos se informan y se omiten del plan.
-- Plan para organizar los medios y proyectos por `AÑO/MES/DÍA/CATEGORÍA`, con sufijos incrementales para evitar colisiones y sidecars asociados al archivo principal.
-- Validación de rutas de origen y destino; resumen de escaneo y plan en la CLI, exportación y carga de planes JSON y registro de la operación.
-- Ejecución de planes con simulación por defecto, confirmación antes de mover
-  archivos y protección contra sobrescrituras. Verifica los traslados, intenta
-  revertir operaciones fallidas y registra los resultados por archivo en el log
-  y en reportes JSON de auditoría.
+El caché SQLite contiene metadatos extraídos y se almacena en el perfil local
+del usuario:
+
+- Windows: `%LOCALAPPDATA%/Mulita/.cache/metadatos.sqlite3`
+- macOS: `~/Library/Caches/Mulita/.cache/metadatos.sqlite3`
+- Linux y otros: `$XDG_CACHE_HOME/Mulita/.cache/metadatos.sqlite3` o
+  `~/.cache/Mulita/.cache/metadatos.sqlite3`
+
+Una entrada se reutiliza mientras coincidan el tamaño y la fecha de
+modificación de alta precisión del archivo. `--sin-cache` omite la lectura y
+la actualización del caché durante `scan` o `plan`; no cambia el cálculo de
+destinos.
+
+Para las fechas organizativas, los videos priorizan `MediaCreateDate`,
+`CreateDate` y `DateTimeOriginal`; las imágenes priorizan `DateTimeOriginal`
+y `CreateDate`. Si no hay una fecha válida, se utiliza `FileModifyDate`.
+
+## Ejecución segura
+
+Antes de ejecutar un plan sobre archivos reales:
+
+1. Trabaja con una copia del origen y un destino de prueba separado.
+2. Guarda el plan JSON fuera del origen y del destino.
+3. Ejecuta `mulita run PLAN.json` y revisa las rutas y el resumen.
+4. Usa `--ejecutar` solo después de verificar el plan y acepta la confirmación
+   únicamente si las rutas mostradas son las esperadas.
+
+Un plan representa el estado observado al generarlo. Si el origen cambia,
+vuelve a crear y revisar el plan antes de ejecutarlo. El movimiento no es
+atómico: ante un error, Mulita intenta revertir los archivos trasladados en
+esa operación, pero una reversión fallida puede requerir recuperación manual.
+Revisa el resultado y el reporte de auditoría después de cada ejecución real.
+Si una operación no se completa, revisa el mensaje de error y el log; cuando
+la reversión no sea posible, la CLI lo indica como recuperación manual
+requerida.
 
 ## Estructura del proyecto
 
 ```text
-Mulita/
-├── README.md
-├── CHANGELOG.md
-├── TODO.md
-├── pyproject.toml
-├── mulita_mvp_alcance.md
-├── src/
-│   └── mulita/
-│       ├── __init__.py
-│       ├── __main__.py
-│       ├── associations.py
-│       ├── metadata_cache.py
-│       ├── cli.py
-│       ├── dates.py
-│       ├── executor.py
-│       ├── metadata.py
-│       ├── models.py
-│       ├── plan_storage.py
-│       ├── planner.py
-│       ├── reporting.py
-│       └── scanner.py
-├── tests/
-│   ├── test_associations.py
-│   ├── test_metadata_cache.py
-│   ├── test_cli.py
-│   ├── test_dates.py
-│   ├── test_executor.py
-│   ├── test_metadata.py
-│   ├── test_plan_storage.py
-│   ├── test_planner.py
-│   ├── test_reporting.py
-│   └── test_scanner.py
-└── uv.lock
+src/mulita/
+├── cli.py              # Comandos y presentación en terminal
+├── scanner.py          # Recorrido y análisis de archivos
+├── metadata.py         # Extracción de metadatos con ExifTool
+├── metadata_cache.py   # Caché SQLite
+├── dates.py            # Resolución y prioridad de fechas
+├── associations.py     # Asociación de sidecars
+├── planner.py          # Cálculo de destinos y colisiones
+├── plan_storage.py     # Persistencia de planes y auditorías JSON
+├── executor.py         # Validación y ejecución de movimientos
+├── reporting.py        # Logs y registro de resultados
+└── models.py           # Modelos y tipos del dominio
+
+tests/                  # Pruebas automatizadas con pytest
 ```
 
-## Convenciones de diseño
+## Desarrollo y pruebas
 
-- La simulación es el modo predeterminado; la ejecución real requiere `--ejecutar` y confirmación.
-- No sobrescribir silenciosamente archivos existentes.
-- Mantener decisiones explícitas y registradas.
-- Priorizar metadatos confiables y dejar reliquias o casos ambiguos para revisión.
-- Separar responsabilidades en módulos (escaneo, fechas, metadatos, planificación, ejecución, CLI).
+Instala las dependencias de desarrollo con uno de los comandos de instalación
+anteriores. Ejecuta la suite de pruebas con:
 
-## Roadmap
+```bash
+python -m pytest
+```
 
-La ejecución segura de planes prevista para el Hito 5 está implementada en la versión 0.3.0. Consulta el [TODO](TODO.md) para ver las tareas pendientes.
+El proyecto configura Ruff y Black. Para revisar el código:
 
-## Participación e ideas
+```bash
+ruff check src tests
+black --check src tests
+```
 
-¡Toda colaboración es bienvenida! Puedes ayudar probando el MVP, reportando errores, sugiriendo mejoras o proponiendo ideas para organizar fotos y videos de forma más segura y clara.
+## Documentación relacionada
 
-Antes de proponer una funcionalidad, revisa el [alcance del MVP](mulita_mvp_alcance.md) y el [TODO](TODO.md) para ver qué está previsto y qué queda pendiente. Para compartir una propuesta, abre una issue describiendo el problema que resolvería, el comportamiento que esperas y, si es posible, un ejemplo de uso. Las ideas que amplíen el alcance actual también son bienvenidas: se pueden conversar antes de incorporarlas al roadmap.
-
-## Licencia
-
-Este proyecto se distribuye bajo la licencia MIT. Consulta [LICENSE](LICENSE) para ver sus términos.
+- [CHANGELOG](CHANGELOG.md): cambios por versión.
+- [TODO](TODO.md): trabajo pendiente.
+- [Alcance del MVP](mulita_mvp_alcance.md): requisitos y alcance iniciales.
+- [Licencia](LICENSE): licencia MIT.

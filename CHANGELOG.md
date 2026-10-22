@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### Docs
+
+- **readme**: reorganizar la guía técnica con inicio rápido, navegación,
+  opciones de CLI, metadatos, pruebas y recomendaciones de ejecución segura
+
 ### Feat
 
 - **scanner**: reutilizar metadatos mediante un caché SQLite persistente,
