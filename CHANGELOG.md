@@ -1,5 +1,10 @@
 ## [Unreleased]
 
+### Feat
+
+- **scanner**: reconocer y organizar proyectos de edición, y validar que cada
+  extensión corresponda a una sola categoría
+
 ### Fix
 
 - **cli**: validar la salida del plan antes del escaneo, pedir confirmación

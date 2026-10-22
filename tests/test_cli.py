@@ -40,6 +40,7 @@ def test_cli_scan_ejecucion_exitosa(tmp_path: Path) -> None:
     origen = tmp_path / "origen"
     origen.mkdir()
     (origen / "foto1.jpg").touch()
+    (origen / "edicion.psd").touch()
 
     # Act
     result = runner.invoke(app, ["scan", str(origen)])
@@ -49,6 +50,7 @@ def test_cli_scan_ejecucion_exitosa(tmp_path: Path) -> None:
     assert "Iniciando escaneo" in result.stdout
     assert "Resumen del escaneo" in result.stdout
     assert "Imágenes:         1" in result.stdout
+    assert "Proyectos:        1" in result.stdout
 
 
 def test_cli_scan_directorio_inexistente() -> None:

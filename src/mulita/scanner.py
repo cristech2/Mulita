@@ -6,33 +6,13 @@ from mulita.associations import asociar_sidecars
 from mulita.dates import resolver_fecha_archivo
 from mulita.metadata import extraer_metadatos
 from mulita.models import (
+    TIPO_ARCHIVO_POR_EXTENSION,
     ArchivoAnalizado,
     ArchivoEscaneado,
     ResultadoEscaneo,
     TipoArchivo,
 )
 from mulita.reporting import obtener_logger
-
-EXTENSIONES_IMAGEN: set[str] = {
-    ".jpg",
-    ".jpeg",
-    ".png",
-    ".tiff",
-    ".tif",
-    ".af",
-}
-EXTENSIONES_RAW: set[str] = {
-    ".cr2",
-    ".cr3",
-    ".nef",
-    ".arw",
-    ".dng",
-    ".orf",
-    ".rw2",
-    ".raf",
-}
-EXTENSIONES_VIDEO: set[str] = {".mp4", ".mov", ".m4v", ".avi", ".mkv", ".3gp"}
-EXTENSIONES_AUX: set[str] = {".xmp", ".rrdata", ".rrexif"}
 
 
 def clasificar_extension(extension: str) -> TipoArchivo:
@@ -45,16 +25,7 @@ def clasificar_extension(extension: str) -> TipoArchivo:
         TipoArchivo: Tipo asociado a la extensión.
     """
     ext = extension.lower()
-    if ext in EXTENSIONES_IMAGEN:
-        return TipoArchivo.IMAGEN
-    if ext in EXTENSIONES_RAW:
-        return TipoArchivo.RAW
-    if ext in EXTENSIONES_VIDEO:
-        return TipoArchivo.VIDEO
-    if ext in EXTENSIONES_AUX:
-        return TipoArchivo.AUXILIAR
-
-    return TipoArchivo.DESCONOCIDO
+    return TIPO_ARCHIVO_POR_EXTENSION.get(ext, TipoArchivo.DESCONOCIDO)
 
 
 def escanear_directorio(

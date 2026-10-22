@@ -5,7 +5,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from mulita.models import EstadoAsociacion, ResultadoEscaneo, TipoArchivo
+from mulita.models import (
+    EXTENSIONES_POR_TIPO,
+    EstadoAsociacion,
+    ResultadoEscaneo,
+    TipoArchivo,
+    _crear_mapa_extensiones,
+)
 from mulita.scanner import (
     analizar_directorio,
     clasificar_extension,
@@ -22,6 +28,16 @@ from mulita.scanner import (
         (".ARW", TipoArchivo.RAW),
         (".mp4", TipoArchivo.VIDEO),
         (".MOV", TipoArchivo.VIDEO),
+        (".psd", TipoArchivo.PROYECTO),
+        (".PSB", TipoArchivo.PROYECTO),
+        (".aff", TipoArchivo.PROYECTO),
+        (".afphoto", TipoArchivo.PROYECTO),
+        (".afdesign", TipoArchivo.PROYECTO),
+        (".afpub", TipoArchivo.PROYECTO),
+        (".xcf", TipoArchivo.PROYECTO),
+        (".kra", TipoArchivo.PROYECTO),
+        (".ai", TipoArchivo.PROYECTO),
+        (".indd", TipoArchivo.PROYECTO),
         (".xmp", TipoArchivo.AUXILIAR),
         (".RRDATA", TipoArchivo.AUXILIAR),
         (".pdf", TipoArchivo.DESCONOCIDO),
@@ -42,6 +58,37 @@ def test_clasificar_extension_tipos_soportados(
 
     # Assert
     assert tipo_obtenido == tipo_esperado
+
+
+@pytest.mark.parametrize(
+    "extension, tipo_esperado",
+    [
+        (extension, tipo)
+        for tipo, extensiones in EXTENSIONES_POR_TIPO.items()
+        for extension in extensiones
+    ],
+)
+def test_clasificar_todas_las_extensiones_declaradas(
+    extension: str, tipo_esperado: TipoArchivo
+) -> None:
+    """Verifica que el clasificador devuelva el tipo esperado."""
+    assert clasificar_extension(extension) == tipo_esperado
+
+
+def test_mapa_extension_rechaza_una_extension_en_varios_tipos() -> None:
+    """Verifica que el mapa rechace extensiones asignadas a dos categorías."""
+    # Arrange
+    extensiones_duplicadas = {
+        TipoArchivo.IMAGEN: frozenset({".af"}),
+        TipoArchivo.PROYECTO: frozenset({".af"}),
+    }
+
+    # Act & Assert
+    with pytest.raises(
+        ValueError,
+        match=r"\.af está asignada a IMAGEN y PROYECTO",
+    ):
+        _crear_mapa_extensiones(extensiones_duplicadas)
 
 
 def test_escanear_directorio_ruta_inexistente() -> None:
@@ -134,6 +181,9 @@ def test_analizar_directorio_retorna_resultado_escaneo_completo(
     video = tmp_path / "clip.mp4"
     video.touch()
 
+    proyecto = tmp_path / "edicion.psd"
+    proyecto.touch()
+
     desconocido = tmp_path / "documento.pdf"
     desconocido.touch()
 
@@ -142,7 +192,7 @@ def test_analizar_directorio_retorna_resultado_escaneo_completo(
 
     # Assert
     assert isinstance(resultado, ResultadoEscaneo)
-    assert len(resultado.grupos) == 2
+    assert len(resultado.grupos) == 3
 
     grupo_foto = next(
         g
@@ -151,6 +201,13 @@ def test_analizar_directorio_retorna_resultado_escaneo_completo(
     )
     assert len(grupo_foto.sidecars) == 1
     assert grupo_foto.sidecars[0].archivo.ruta == sidecar.resolve()
+
+    grupo_proyecto = next(
+        g
+        for g in resultado.grupos
+        if g.principal.archivo.ruta == proyecto.resolve()
+    )
+    assert grupo_proyecto.principal.archivo.tipo == TipoArchivo.PROYECTO
 
     assert len(resultado.desconocidos) == 1
     assert resultado.desconocidos[0].archivo.ruta == desconocido.resolve()
@@ -210,6 +267,9 @@ def test_analizar_directorio_filtra_rutas_para_metadatos(
     auxiliar = tmp_path / "foto.xmp"
     auxiliar.touch()
 
+    proyecto = tmp_path / "edicion.psd"
+    proyecto.touch()
+
     desconocido = tmp_path / "notas.txt"
     desconocido.touch()
 
@@ -224,4 +284,5 @@ def test_analizar_directorio_filtra_rutas_para_metadatos(
     assert foto.resolve() in rutas_enviadas
     assert raw.resolve() in rutas_enviadas
     assert auxiliar.resolve() not in rutas_enviadas
+    assert proyecto.resolve() not in rutas_enviadas
     assert desconocido.resolve() not in rutas_enviadas

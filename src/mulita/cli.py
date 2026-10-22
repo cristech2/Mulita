@@ -184,6 +184,10 @@ def scan(
         f"  🎥 Videos:           {resumen.conteo_por_tipo[TipoArchivo.VIDEO]}"
     )
     typer.echo(
+        "  🎨 Proyectos:        "
+        f"{resumen.conteo_por_tipo[TipoArchivo.PROYECTO]}"
+    )
+    typer.echo(
         "  📄 Auxiliares (XMP): "
         f"{resumen.conteo_por_tipo[TipoArchivo.AUXILIAR]}"
     )
@@ -194,7 +198,7 @@ def scan(
             fg=typer.colors.YELLOW,
         )
 
-    typer.echo(f"\n📦 Grupos de medios principales: {resumen.total_grupos}")
+    typer.echo(f"\n📦 Grupos principales:           {resumen.total_grupos}")
     typer.echo(
         f"🔗 Sidecars asociados:            {resumen.sidecars_asociados}"
     )

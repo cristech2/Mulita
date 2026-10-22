@@ -70,6 +70,7 @@ def asociar_sidecars(
                 TipoArchivo.IMAGEN,
                 TipoArchivo.RAW,
                 TipoArchivo.VIDEO,
+                TipoArchivo.PROYECTO,
             ):
                 grupo = GrupoArchivo(principal=item)
                 principales_map[item.archivo.ruta] = grupo

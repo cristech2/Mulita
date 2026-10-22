@@ -1,11 +1,15 @@
 # Mulita
 
-Mulita es una herramienta CLI para organizar fotos y videos de forma segura y trazable a partir de metadatos y reglas explícitas. Está pensada para recorrer directorios de origen, reconocer archivos de medios y generar un plan de organización sin sobrescribir datos ni decidir sin evidencia.
+Mulita es una herramienta CLI para organizar fotos, videos y proyectos de
+edición de forma segura y trazable a partir de metadatos y reglas explícitas.
+Está pensada para recorrer directorios de origen, reconocer archivos de medios
+y proyectos, y generar un plan de organización sin sobrescribir datos ni
+decidir sin evidencia.
 
 El proyecto sigue una lógica de MVP orientada a medios fotográficos y audiovisuales, con énfasis en:
 
 - escaneo recursivo de carpetas;
-- clasificación por tipo de archivo;
+- clasificación de imágenes, RAW, videos, proyectos de edición y auxiliares;
 - lectura de metadatos con ExifTool;
 - determinación de fecha de origen para organizar;
 - asociación de sidecars como XMP;
@@ -140,10 +144,12 @@ Guarda también el archivo JSON del plan fuera de ambas carpetas.
 
 ### Implementado
 
-- Escaneo recursivo y clasificación de extensiones configuradas como imagen, RAW, video, auxiliar o desconocido; omite rutas ocultas y el módulo permite excluir una ruta de destino cuando se indica.
+- Escaneo recursivo y clasificación de extensiones configuradas como imagen, RAW, video, proyecto de edición, auxiliar o desconocido; omite rutas ocultas y el módulo permite excluir una ruta de destino cuando se indica.
 - Extracción de fechas disponibles con ExifTool y selección de fecha según prioridad para fotos y videos. Si no hay una fecha utilizable, usa la fecha de modificación del archivo y la marca como respaldo.
-- Asociación de archivos auxiliares (XMP, RRDATA y RREXIF) con medios de la misma carpeta. Los sidecars huérfanos o ambiguos y los archivos desconocidos se informan y se omiten del plan.
-- Plan para organizar los medios por `AÑO/MES/DÍA/CATEGORÍA`, con sufijos incrementales para evitar colisiones y sidecars asociados al archivo principal.
+- Asociación de archivos auxiliares (XMP, RRDATA y RREXIF) con medios o
+  proyectos de la misma carpeta. Los sidecars huérfanos o ambiguos y los
+  archivos desconocidos se informan y se omiten del plan.
+- Plan para organizar los medios y proyectos por `AÑO/MES/DÍA/CATEGORÍA`, con sufijos incrementales para evitar colisiones y sidecars asociados al archivo principal.
 - Validación de rutas de origen y destino; resumen de escaneo y plan en la CLI, exportación y carga de planes JSON y registro de la operación.
 - Ejecución de planes con simulación por defecto, confirmación antes de mover
   archivos y protección contra sobrescrituras. Verifica los traslados, intenta

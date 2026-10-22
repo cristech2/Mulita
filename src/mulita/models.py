@@ -1,5 +1,6 @@
 """Módulo de modelos de datos y enumeraciones del dominio para Mulita."""
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum, auto
@@ -13,6 +14,7 @@ class TipoArchivo(Enum):
         IMAGEN: Archivos de imagen estándar.
         RAW: Archivos RAW de cámaras.
         VIDEO: Archivos de video.
+        PROYECTO: Archivos de proyectos de edición.
         AUXILIAR: Sidecars o archivos auxiliares.
         DESCONOCIDO: Archivos no reconocidos.
     """
@@ -20,8 +22,67 @@ class TipoArchivo(Enum):
     IMAGEN = auto()
     RAW = auto()
     VIDEO = auto()
+    PROYECTO = auto()
     AUXILIAR = auto()
     DESCONOCIDO = auto()
+
+
+EXTENSIONES_POR_TIPO: dict[TipoArchivo, frozenset[str]] = {
+    TipoArchivo.IMAGEN: frozenset({".jpg", ".jpeg", ".png", ".tiff", ".tif"}),
+    TipoArchivo.RAW: frozenset(
+        {
+            ".cr2",
+            ".cr3",
+            ".nef",
+            ".arw",
+            ".dng",
+            ".orf",
+            ".rw2",
+            ".raf",
+        }
+    ),
+    TipoArchivo.VIDEO: frozenset(
+        {".mp4", ".mov", ".m4v", ".avi", ".mkv", ".3gp"}
+    ),
+    TipoArchivo.PROYECTO: frozenset(
+        {
+            ".psd",
+            ".psb",
+            ".aff",
+            ".af",
+            ".afphoto",
+            ".afdesign",
+            ".afdesigner",
+            ".afpub",
+            ".xcf",
+            ".kra",
+            ".ai",
+            ".indd",
+        }
+    ),
+    TipoArchivo.AUXILIAR: frozenset({".xmp", ".rrdata", ".rrexif"}),
+}
+
+
+def _crear_mapa_extensiones(
+    extensiones_por_tipo: Mapping[TipoArchivo, frozenset[str]],
+) -> dict[str, TipoArchivo]:
+    """Crea el mapa de clasificación y rechaza extensiones duplicadas."""
+    tipos_por_extension: dict[str, TipoArchivo] = {}
+    for tipo, extensiones in extensiones_por_tipo.items():
+        for extension in extensiones:
+            tipo_existente = tipos_por_extension.get(extension)
+            if tipo_existente is not None:
+                raise ValueError(
+                    f"La extensión {extension} está asignada a "
+                    f"{tipo_existente.name} y {tipo.name}."
+                )
+            tipos_por_extension[extension] = tipo
+
+    return tipos_por_extension
+
+
+TIPO_ARCHIVO_POR_EXTENSION = _crear_mapa_extensiones(EXTENSIONES_POR_TIPO)
 
 
 class EstadoAsociacion(Enum):
