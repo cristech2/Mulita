@@ -124,6 +124,53 @@ def exportar_plan_json(plan: PlanOrganizacion, ruta_salida: Path) -> None:
     _escribir_json_atomico(datos, ruta_salida)
 
 
+def _validar_rutas_anidadas_en_plan(rutas: list[Path], tipo: str) -> None:
+    """Rechaza rutas donde una ruta de archivo es antecesora de otra."""
+    normalizadas = [
+        Path(os.path.abspath(os.path.normpath(ruta))) for ruta in rutas
+    ]
+    conjunto = set(normalizadas)
+
+    for ruta in conjunto:
+        if any(padre in conjunto for padre in ruta.parents):
+            raise ValueError(
+                f"El plan JSON contiene rutas de {tipo} anidadas "
+                f"incompatibles: {ruta}"
+            )
+
+
+def _validar_ruta_destino_plan(
+    destino: Path,
+    directorio_destino: Path,
+    fecha: datetime,
+    categoria: TipoArchivo,
+    indice_operacion: int,
+) -> None:
+    """Valida la jerarquía YYYY/MM/DD/CATEGORIA/archivo del plan."""
+    base = Path(os.path.abspath(os.path.normpath(directorio_destino)))
+    ruta = Path(os.path.abspath(os.path.normpath(destino)))
+    try:
+        partes = ruta.relative_to(base).parts
+    except ValueError as e:
+        raise ValueError(
+            f"el destino de la operación {indice_operacion} está fuera "
+            f"de 'directorio_destino': {destino}"
+        ) from e
+
+    esperado = (
+        f"{fecha.year:04d}",
+        f"{fecha.month:02d}",
+        f"{fecha.day:02d}",
+        categoria.name,
+    )
+    if len(partes) != 5 or partes[:4] != esperado or not partes[4]:
+        raise ValueError(
+            f"el destino de la operación {indice_operacion} debe seguir "
+            f"la estructura YYYY/MM/DD/CATEGORIA/archivo "
+            f"({ '/'.join(esperado) }/{destino.name}): {destino}"
+        )
+
+
 def cargar_plan_json(ruta_json: Path) -> PlanOrganizacion:
     """Carga y reconstruye un PlanOrganizacion desde un archivo JSON.
 
@@ -142,23 +189,128 @@ def cargar_plan_json(ruta_json: Path) -> PlanOrganizacion:
             f"El archivo de plan especificado no existe: {ruta_json}"
         )
 
-    with ruta_json.open("r", encoding="utf-8") as f:
-        datos = json.load(f)
+    try:
+        with ruta_json.open("r", encoding="utf-8") as f:
+            datos = json.load(f)
+    except json.JSONDecodeError as e:
+        raise ValueError(
+            f"El archivo JSON no tiene un formato de plan válido: {e}"
+        ) from e
 
     try:
+        if not isinstance(datos, dict):
+            raise TypeError("la raíz del JSON debe ser un objeto")
+
+        directorio_origen = datos["directorio_origen"]
+        directorio_destino = datos["directorio_destino"]
+        operaciones_json = datos["operaciones"]
+        if not isinstance(directorio_origen, str) or not directorio_origen:
+            raise TypeError("'directorio_origen' debe ser una ruta no vacía")
+        if not isinstance(directorio_destino, str) or not directorio_destino:
+            raise TypeError("'directorio_destino' debe ser una ruta no vacía")
+        if not isinstance(operaciones_json, list):
+            raise TypeError("'operaciones' debe ser una lista")
+
         operaciones: list[OperacionPlan] = []
-        for op in datos.get("operaciones", []):
+        origenes: list[Path] = []
+        destinos: list[Path] = []
+        for indice, op in enumerate(operaciones_json):
+            if not isinstance(op, dict):
+                raise TypeError(f"la operación {indice} debe ser un objeto")
+
+            for nombre in ("origen", "destino", "categoria", "accion"):
+                if not isinstance(op.get(nombre), str) or not op[nombre]:
+                    raise TypeError(
+                        f"'{nombre}' debe ser texto no vacío "
+                        f"en la operación {indice}"
+                    )
+
             fecha_dict = op["fecha_resultado"]
+            if not isinstance(fecha_dict, dict):
+                raise TypeError(
+                    f"'fecha_resultado' debe ser un objeto "
+                    f"en la operación {indice}"
+                )
+            if not isinstance(fecha_dict.get("fecha"), str):
+                raise TypeError(
+                    f"'fecha_resultado.fecha' debe ser texto "
+                    f"en la operación {indice}"
+                )
+            if not isinstance(fecha_dict.get("fuente"), str):
+                raise TypeError(
+                    f"'fecha_resultado.fuente' debe ser texto "
+                    f"en la operación {indice}"
+                )
+            if type(fecha_dict.get("es_respaldo")) is not bool:
+                raise TypeError(
+                    f"'fecha_resultado.es_respaldo' debe ser booleano "
+                    f"en la operación {indice}"
+                )
+
             fecha_res = FechaResultado(
                 fecha=datetime.fromisoformat(fecha_dict["fecha"]),
                 fuente=fecha_dict["fuente"],
                 es_respaldo=fecha_dict["es_respaldo"],
             )
 
+            sidecars_json = op.get("sidecars_asociados", [])
+            if not isinstance(sidecars_json, list):
+                raise TypeError(
+                    f"'sidecars_asociados' debe ser una lista "
+                    f"en la operación {indice}"
+                )
+            if any(
+                not isinstance(sidecar, list)
+                or len(sidecar) != 2
+                or not all(isinstance(ruta, str) and ruta for ruta in sidecar)
+                for sidecar in sidecars_json
+            ):
+                raise TypeError(
+                    f"cada sidecar debe contener dos rutas de texto "
+                    f"en la operación {indice}"
+                )
             sidecars = [
-                (Path(s[0]), Path(s[1]))
-                for s in op.get("sidecars_asociados", [])
+                (Path(sidecar[0]), Path(sidecar[1]))
+                for sidecar in sidecars_json
             ]
+
+            advertencias = op.get("advertencias", [])
+            if not isinstance(advertencias, list) or not all(
+                isinstance(advertencia, str) for advertencia in advertencias
+            ):
+                raise TypeError(
+                    f"'advertencias' debe ser una lista de textos "
+                    f"en la operación {indice}"
+                )
+
+            accion = AccionPlan[op["accion"]]
+            if accion == AccionPlan.MOVER:
+                destino_principal = Path(op["destino"])
+                _validar_ruta_destino_plan(
+                    destino_principal,
+                    Path(directorio_destino),
+                    fecha_res.fecha,
+                    TipoArchivo[op["categoria"]],
+                    indice,
+                )
+                origenes.append(Path(op["origen"]))
+                destinos.append(destino_principal)
+                for origen_sidecar, destino_sidecar in sidecars:
+                    _validar_ruta_destino_plan(
+                        destino_sidecar,
+                        Path(directorio_destino),
+                        fecha_res.fecha,
+                        TipoArchivo[op["categoria"]],
+                        indice,
+                    )
+                    if destino_sidecar.parent != destino_principal.parent:
+                        raise ValueError(
+                            f"el destino del sidecar de la operación "
+                            f"{indice} debe estar junto al archivo principal: "
+                            f"{destino_sidecar}"
+                        )
+                    origenes.append(origen_sidecar)
+                    destinos.append(destino_sidecar)
 
             operaciones.append(
                 OperacionPlan(
@@ -167,19 +319,22 @@ def cargar_plan_json(ruta_json: Path) -> PlanOrganizacion:
                     categoria=TipoArchivo[op["categoria"]],
                     fecha_resultado=fecha_res,
                     sidecars_asociados=sidecars,
-                    accion=AccionPlan[op["accion"]],
-                    advertencias=op.get("advertencias", []),
+                    accion=accion,
+                    advertencias=advertencias,
                 )
             )
 
-        return PlanOrganizacion(
-            directorio_origen=Path(datos["directorio_origen"]),
-            directorio_destino=Path(datos["directorio_destino"]),
+        plan = PlanOrganizacion(
+            directorio_origen=Path(directorio_origen),
+            directorio_destino=Path(directorio_destino),
             operaciones=operaciones,
             sidecars_omitidos=[],  # Omitidos en ejecución
             desconocidos=[],
         )
-    except (KeyError, TypeError) as e:
+        _validar_rutas_anidadas_en_plan(origenes, "origen")
+        _validar_rutas_anidadas_en_plan(destinos, "destino")
+        return plan
+    except (KeyError, TypeError, ValueError) as e:
         raise ValueError(
             f"El archivo JSON no tiene un formato de plan válido: {e}"
         ) from e

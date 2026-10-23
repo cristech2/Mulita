@@ -166,6 +166,12 @@ intenta revertir los movimientos de esa operación. Al finalizar guarda un
 reporte JSON en `reportes/ejecucion_<plan>.json`; si ese nombre ya existe,
 elige un nombre alternativo para conservar los reportes anteriores.
 
+Al cargar el JSON, Mulita comprueba su estructura y que cada destino siga
+`DESTINO/YYYY/MM/DD/CATEGORIA/archivo`, según la fecha y categoría de la
+operación. Los sidecars deben quedar junto a su archivo principal. Antes de
+pedir confirmación, también verifica que los orígenes existan, que los destinos
+no estén ocupados y que el plan no contenga rutas incompatibles.
+
 ## Opciones de la CLI
 
 Consulta `mulita --help`, `mulita scan --help`, `mulita plan --help` o
