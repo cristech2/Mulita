@@ -108,12 +108,8 @@ def validar_plan_ejecucion(plan: PlanOrganizacion) -> None:
                 f"{destino}"
             )
 
-    rutas_destino = list(destinos)
-    for indice, destino in enumerate(rutas_destino):
-        if any(
-            destino in otro.parents or otro in destino.parents
-            for otro in rutas_destino[indice + 1 :]
-        ):
+    for destino in destinos:
+        if any(padre in destinos for padre in destino.parents):
             errores.append(
                 f"Hay rutas de destino anidadas incompatibles: {destino}"
             )

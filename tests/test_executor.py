@@ -10,6 +10,7 @@ from mulita.executor import (
     _ejecutar_operacion_individual,
     _validar_existencia_origen_y_destino,
     ejecutar_plan,
+    validar_plan_ejecucion,
 )
 from mulita.models import (
     AccionPlan,
@@ -67,6 +68,48 @@ def test_validar_existencia_destino_ya_existente(tmp_path: Path) -> None:
     # Act & Assert
     with pytest.raises(FileExistsError, match="El archivo destino ya existe"):
         _validar_existencia_origen_y_destino(origen, destino)
+
+
+def test_validar_plan_ejecucion_detecta_destinos_anidados(
+    tmp_path: Path, fecha_dummy: FechaResultado
+) -> None:
+    """Rechaza destinos cuando una ruta es padre de otra."""
+    origen = tmp_path / "origen"
+    origen.mkdir()
+    origenes = [origen / "foto1.jpg", origen / "foto2.jpg"]
+    for ruta in origenes:
+        ruta.touch()
+
+    destino = tmp_path / "destino"
+    plan = PlanOrganizacion(
+        directorio_origen=origen,
+        directorio_destino=destino,
+        operaciones=[
+            OperacionPlan(
+                origen=origenes[0],
+                destino=destino / "album",
+                categoria=TipoArchivo.IMAGEN,
+                fecha_resultado=fecha_dummy,
+                sidecars_asociados=[],
+                accion=AccionPlan.MOVER,
+            ),
+            OperacionPlan(
+                origen=origenes[1],
+                destino=destino / "album" / "foto.jpg",
+                categoria=TipoArchivo.IMAGEN,
+                fecha_resultado=fecha_dummy,
+                sidecars_asociados=[],
+                accion=AccionPlan.MOVER,
+            ),
+        ],
+        sidecars_omitidos=[],
+        desconocidos=[],
+    )
+
+    with pytest.raises(
+        ValueError, match="Hay rutas de destino anidadas incompatibles"
+    ):
+        validar_plan_ejecucion(plan)
 
 
 def test_ejecutar_operacion_individual_mueve_principal_y_sidecars(

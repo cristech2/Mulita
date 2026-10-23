@@ -19,10 +19,12 @@
 
 - **cli**: validar la salida del plan antes del escaneo, pedir confirmación
   para sobrescribir y evitar guardar dentro del origen
-- **executor**: prevalidar las operaciones y preparar la auditoría antes de
-  confirmar y ejecutar movimientos
+- **executor**: prevalidar las operaciones con búsqueda eficiente de destinos
+  incompatibles y preparar la auditoría antes de confirmar movimientos
 - **plan-storage**: guardar los JSON de forma atómica y preservar auditorías
   anteriores
+- **plan-storage**: validar la estructura del JSON, la jerarquía de destinos
+  `YYYY/MM/DD/CATEGORIA/archivo` y la ubicación de los sidecars
 
 ## v0.3.0 (2026-10-21)
 

@@ -207,6 +207,138 @@ def test_cargar_plan_json_formato_invalido(tmp_path: Path) -> None:
         cargar_plan_json(json_invalido)
 
 
+def test_cargar_plan_json_rechaza_estructura_invalida(
+    tmp_path: Path,
+) -> None:
+    """Rechaza campos con tipos que no corresponden al esquema del plan."""
+    ruta_json = tmp_path / "estructura_invalida.json"
+    ruta_json.write_text(
+        json.dumps(
+            {
+                "directorio_origen": str(tmp_path / "origen"),
+                "directorio_destino": str(tmp_path / "destino"),
+                "operaciones": [
+                    {
+                        "origen": [str(tmp_path / "origen" / "foto.jpg")],
+                        "destino": str(tmp_path / "destino" / "foto.jpg"),
+                        "categoria": "IMAGEN",
+                        "accion": "MOVER",
+                        "fecha_resultado": {
+                            "fecha": "2026-10-20T12:00:00",
+                            "fuente": "EXIF",
+                            "es_respaldo": False,
+                        },
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="'origen' debe ser texto"):
+        cargar_plan_json(ruta_json)
+
+
+def test_cargar_plan_json_rechaza_archivo_usado_como_directorio(
+    tmp_path: Path,
+) -> None:
+    """Detecta rutas de archivo que son antecesoras de otra ruta del plan."""
+    ruta_json = tmp_path / "rutas_incompatibles.json"
+    ruta_foto = tmp_path / "origen" / "foto.jpg"
+    contenido = {
+        "directorio_origen": str(tmp_path / "origen"),
+        "directorio_destino": str(tmp_path / "destino"),
+        "operaciones": [
+            {
+                "origen": str(ruta_foto),
+                "destino": str(
+                    tmp_path
+                    / "destino"
+                    / "2026"
+                    / "10"
+                    / "20"
+                    / "IMAGEN"
+                    / "foto1.jpg"
+                ),
+                "categoria": "IMAGEN",
+                "accion": "MOVER",
+                "fecha_resultado": {
+                    "fecha": "2026-10-20T12:00:00",
+                    "fuente": "EXIF",
+                    "es_respaldo": False,
+                },
+            },
+            {
+                "origen": str(ruta_foto / "foto2.raw"),
+                "destino": str(
+                    tmp_path
+                    / "destino"
+                    / "2026"
+                    / "10"
+                    / "20"
+                    / "RAW"
+                    / "foto2.raw"
+                ),
+                "categoria": "RAW",
+                "accion": "MOVER",
+                "fecha_resultado": {
+                    "fecha": "2026-10-20T12:00:00",
+                    "fuente": "EXIF",
+                    "es_respaldo": False,
+                },
+            },
+        ],
+    }
+    ruta_json.write_text(json.dumps(contenido), encoding="utf-8")
+
+    with pytest.raises(
+        ValueError, match="rutas de origen anidadas incompatibles"
+    ):
+        cargar_plan_json(ruta_json)
+
+
+@pytest.mark.parametrize(
+    "partes_destino",
+    [
+        ("2026", "10", "20", "IMAGEN", "archivo.jpg", "archivo.jpg"),
+        ("2026", "10", "20", "RAW", "archivo.jpg"),
+        ("2026", "11", "20", "IMAGEN", "archivo.jpg"),
+        ("otra-carpeta", "archivo.jpg"),
+    ],
+)
+def test_cargar_plan_json_rechaza_destino_fuera_de_estructura(
+    tmp_path: Path, partes_destino: tuple[str, ...]
+) -> None:
+    """Rechaza destinos que no siguen YYYY/MM/DD/CATEGORIA/archivo."""
+    ruta_json = tmp_path / "destino_invalido.json"
+    contenido = {
+        "directorio_origen": str(tmp_path / "origen"),
+        "directorio_destino": str(tmp_path / "destino"),
+        "operaciones": [
+            {
+                "origen": str(tmp_path / "origen" / "archivo.jpg"),
+                "destino": str(
+                    (tmp_path / "destino").joinpath(*partes_destino)
+                ),
+                "categoria": "IMAGEN",
+                "accion": "MOVER",
+                "fecha_resultado": {
+                    "fecha": "2026-10-20T12:00:00",
+                    "fuente": "EXIF",
+                    "es_respaldo": False,
+                },
+            }
+        ],
+    }
+    ruta_json.write_text(json.dumps(contenido), encoding="utf-8")
+
+    with pytest.raises(
+        ValueError,
+        match="debe seguir la estructura YYYY/MM/DD/CATEGORIA/archivo",
+    ):
+        cargar_plan_json(ruta_json)
+
+
 def test_buscar_archivos_plan_encuentra_solo_json_validos(
     tmp_path: Path,
 ) -> None:

@@ -538,7 +538,7 @@ def test_cli_run_prevalida_todo_el_plan_antes_de_mover(
     operaciones = [
         OperacionPlan(
             origen=ruta_origen,
-            destino=destino / nombre,
+            destino=destino / "2026" / "10" / "20" / "IMAGEN" / nombre,
             categoria=TipoArchivo.IMAGEN,
             fecha_resultado=fecha,
             sidecars_asociados=[],
@@ -568,7 +568,9 @@ def test_cli_run_prevalida_todo_el_plan_antes_de_mover(
     assert result.exit_code == 1
     assert "no existe o no es un archivo" in result.output
     assert primer_archivo.exists()
-    assert not (destino / "primero.jpg").exists()
+    assert not (
+        destino / "2026" / "10" / "20" / "IMAGEN" / "primero.jpg"
+    ).exists()
     assert "¿Desea proceder" not in result.output
 
 
@@ -594,7 +596,7 @@ def test_cli_run_prevalida_destinos_duplicados_antes_de_mover(
         fuente="DateTimeOriginal",
         es_respaldo=False,
     )
-    destino_repetido = destino / "foto.jpg"
+    destino_repetido = destino / "2026" / "10" / "20" / "IMAGEN" / "foto.jpg"
     operaciones = [
         OperacionPlan(
             origen=foto,
@@ -652,7 +654,9 @@ def test_cli_run_no_mueve_archivos_si_no_se_puede_preparar_auditoria(
             operaciones=[
                 OperacionPlan(
                     origen=foto,
-                    destino=destino / "foto.jpg",
+                    destino=(
+                        destino / "2026" / "10" / "20" / "IMAGEN" / "foto.jpg"
+                    ),
                     categoria=TipoArchivo.IMAGEN,
                     fecha_resultado=FechaResultado(
                         fecha=datetime(2026, 10, 20),
@@ -701,7 +705,7 @@ def test_cli_run_informa_si_falla_guardar_auditoria_tras_mover(
     destino = tmp_path / "destino"
     foto = origen / "foto.jpg"
     foto.touch()
-    destino_foto = destino / "foto.jpg"
+    destino_foto = destino / "2026" / "10" / "20" / "IMAGEN" / "foto.jpg"
     plan_file = tmp_path / "plan.json"
     exportar_plan_json(
         PlanOrganizacion(
